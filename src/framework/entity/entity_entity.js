@@ -15,9 +15,10 @@ pc.extend(pc.fw, function () {
      *
      * <p>Every object created in the PlayCanvas Designer is an Entity.</p>
      *
+     * @param {pc.fw.ApplicationContext} context The context for the current application.
      * @example
-     * var entity = new pc.fw.Entity();
      * var context = ... // Get the pc.fw.ApplicationContext
+     * var entity = new pc.fw.Entity(context);
      *
      * // Add a Component to the Entity
      * context.systems.camera.addComponent(entity, {
@@ -45,9 +46,10 @@ pc.extend(pc.fw, function () {
      *
      * @extends pc.scene.GraphNode
      */
-    var Entity = function(){
+    var Entity = function (context) {
         this._guid = pc.guid.create(); // Globally Unique Identifier
         this._batchHandle = null; // The handle for a RequestBatch, set this if you want to Component's to load their resources using a pre-existing RequestBatch.
+        this._context = context;
         this.c = {}; // Component storage
 
         pc.events.attach(this);
@@ -74,6 +76,20 @@ pc.extend(pc.fw, function () {
      */
     Entity.prototype.setGuid = function (guid) {
         this._guid = guid;
+    };
+
+    Entity.prototype.addComponent = function (name, data) {
+        var system = this._context.systems[name];
+        if (system) {
+            if (!this.c[name]) {
+                return system.addComponent(this, data);
+            } else {
+                logERROR(pc.string.format("Entity already has {0} Component", name));
+            }
+        } else {
+            logERROR(pc.string.format("System: '{0}' doesn't exist", name));
+            return null;
+        }
     };
 
     Entity.prototype._onHierarchyStateChanged = function (enabled) {

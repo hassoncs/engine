@@ -35,16 +35,16 @@
         var entity;
 
         // Create an Entity with a camera component
-        var cameraEntity = new pc.fw.Entity();
-        application.context.systems.camera.addComponent(cameraEntity, {
+        var cameraEntity = new pc.fw.Entity(application.context);
+        cameraEntity.addComponent('camera', {
             clearColor: new pc.Color(0,0,0)
         });
         cameraEntity.rotateLocal(0, 0, 0);
         cameraEntity.translateLocal(0, 0.6, 1.8);
 
         // Create a directional light
-        var lightDirEntity = new pc.fw.Entity();
-        application.context.systems.light.addComponent(lightDirEntity, {
+        var lightDirEntity = new pc.fw.Entity(application.context);
+        lightDirEntity.addComponent('light', {
             type: "directional",
             color: new pc.Color(1, .4, 0),
             intensity: 1
@@ -52,8 +52,8 @@
         lightDirEntity.setLocalEulerAngles(-80, 70, 0);
 
         // Create a spot light
-        var lightEntity = new pc.fw.Entity();
-        application.context.systems.light.addComponent(lightEntity, {
+        var lightEntity = new pc.fw.Entity(application.context);
+        lightEntity.addComponent('light', {
             type: "spot",
             color: new pc.Color(.6, .85, 1),
             outerConeAngle: 45,
@@ -67,9 +67,10 @@
         lightEntity.translateLocal(0,10,0);
 
         // Add Entities into the scene hierarchy
-        application.context.root.addChild(cameraEntity);
-        application.context.root.addChild(lightDirEntity);
-        application.context.root.addChild(lightEntity);
+        var root = application.context.root;
+        root.addChild(cameraEntity);
+        root.addChild(lightDirEntity);
+        root.addChild(lightEntity);
 
         // Load model and animation assets
         var model = null;
@@ -84,15 +85,15 @@
             return application.context.assets.loadFromUrl("../assets/Playbot/Playbot_idle.json", "animation");
         }).then(function (resource) {
             idleAnim = resource.asset;
-            entity = new pc.fw.Entity();
+            entity = new pc.fw.Entity(application.context);
             // add model component to entity
-            application.context.systems.model.addComponent(entity, {
+            entity.addComponent('model', {
                 type: "asset",
                 asset: model,
                 castShadows: true
             });
             // add animation component to entity
-            application.context.systems.animation.addComponent(entity, {
+            entity.addComponent('animation', {
                 assets: [idleAnim.resourceId, runAnim.resourceId],
                 speed: 1
             });
