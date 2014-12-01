@@ -239,7 +239,7 @@ pc.extend(pc.fw, function () {
         }, {
             name: "restitution",
             displayName: "Restitution",
-            description: "The restitution determines the elasticity of collisions. 0 means an object doesn't bounce at all, a value of 1 will be a perfect reflection",
+            description: "The restitution determines the elasticity of collisions. 0 means an object does not bounce at all, a value of 1 will be a perfect reflection",
             type: "number",
             options: {
                 min: 0,
@@ -279,7 +279,7 @@ pc.extend(pc.fw, function () {
     pc.extend(RigidBodyComponentSystem.prototype, {
         onLibraryLoaded: function () {
             // Create the Ammo physics world
-            if (typeof(Ammo) !== 'undefined') {
+            if (typeof Ammo !== 'undefined') {
                 var collisionConfiguration = new Ammo.btDefaultCollisionConfiguration();
                 var dispatcher = new Ammo.btCollisionDispatcher(collisionConfiguration);
                 var overlappingPairCache = new Ammo.btDbvtBroadphase();

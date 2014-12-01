@@ -1,5 +1,5 @@
-
-    if (a < 0.01) discard;
-    gl_FragColor = vec4(rgb*a, a);
+    rgb = addFog(data, rgb);
+    rgb = toneMap(rgb);
+    rgb = gammaCorrectOutput(rgb);
+    gl_FragColor = vec4(rgb, a);
 }
-

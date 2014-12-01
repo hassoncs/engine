@@ -1,8 +1,9 @@
 pc.extend(pc.gfx.shaderChunks, (function () {
+    'use strict';
+
     return {
         defaultGamma: pc.gfx.shaderChunks.gamma1_0PS,
-        defaultSpecular: pc.gfx.shaderChunks.lightSpecularPhongPS,
-        defaultFresnel: pc.gfx.shaderChunks.fresnelSimplePS
+        defaultTonemapping: pc.gfx.shaderChunks.tonemappingLinearPS
     };
 }()));
 

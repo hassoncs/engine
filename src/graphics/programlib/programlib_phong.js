@@ -13,7 +13,7 @@ pc.gfx.programlib.phong = {
             }
         }
         props.sort();
-        for(prop in props) key += "_" + props[prop];
+        for(prop in props) key += "_" + props[prop] + ":" + options[props[prop]];
 
         return key;
     },
@@ -36,7 +36,16 @@ pc.gfx.programlib.phong = {
     createShaderDefinition: function (device, options) {
         var i;
         var lighting = options.lights.length > 0;
+        var reflections = options.cubeMap || options.sphereMap || options.prefilteredCubemap;
         var useTangents = pc.gfx.precalculatedTangents;
+        if ((options.cubeMap) || (options.prefilteredCubemap)) options.sphereMap = null; // cubeMaps have higher priority
+
+        if (options.shadingModel===pc.scene.SPECULAR_PHONG) {
+            options.fresnelModel = 0;
+            options.specularAA = false;
+        } else {
+            options.fresnelModel = (options.fresnelModel===0)? pc.scene.FRESNEL_SCHLICK : options.fresnelModel;
+        }
 
         this.options = options;
 
@@ -57,7 +66,7 @@ pc.gfx.programlib.phong = {
         }
         codeBody += "   vPositionW    = getWorldPosition(data);\n";
 
-        if (lighting) {
+        if (lighting || reflections) {
             attributes.vertex_normal = pc.gfx.SEMANTIC_NORMAL;
             codeBody += "   vNormalW    = getNormal(data);\n";
 
@@ -99,12 +108,13 @@ pc.gfx.programlib.phong = {
                 (options.heightMap && !options.heightMapTransform) ||
                 (options.opacityMap && !options.opacityMapTransform) ||
                 (options.specularMap && !options.specularMapTransform) ||
+                (options.emissiveMap && !options.emissiveMapTransform) ||
                 (options.glossMap && !options.glossMapTransform)) {
                 codeBody += "   vUv0        = uv0;\n";
             }
         }
 
-        if (options.lightMap) {
+        if (options.lightMap || (options.aoMap && options.aoUvSet===1)) {
             attributes.vertex_texCoord1 = pc.gfx.SEMANTIC_TEXCOORD1;
             code += chunks.uv1VS;
             codeBody += "   vUv1        = getUv1(data);\n";
@@ -119,10 +129,10 @@ pc.gfx.programlib.phong = {
             attributes.vertex_boneIndices = pc.gfx.SEMANTIC_BLENDINDICES;
             code += getSnippet(device, 'vs_skin_decl');
             code += chunks.transformSkinnedVS;
-            if (lighting) code += chunks.normalSkinnedVS;
+            if (lighting || reflections) code += chunks.normalSkinnedVS;
         } else {
             code += chunks.transformVS;
-            if (lighting) code += chunks.normalVS;
+            if (lighting || reflections) code += chunks.normalVS;
         }
 
         code += "\n";
@@ -172,18 +182,6 @@ pc.gfx.programlib.phong = {
             }
         }
 
-        switch (options.fog) {
-            case 'linear':
-                code += getSnippet(device, 'fs_fog_linear_decl');
-                break;
-            case 'exp':
-                code += getSnippet(device, 'fs_fog_exp_decl');
-                break;
-            case 'exp2':
-                code += getSnippet(device, 'fs_fog_exp2_decl');
-                break;
-        }
-
         if (options.alphaTest) {
             code += getSnippet(device, 'fs_alpha_test_decl');
         }
@@ -194,45 +192,99 @@ pc.gfx.programlib.phong = {
         var uvOffset = options.heightMap? " + data.uvOffset" : "";
 
         if (options.normalMap && useTangents) {
-            code += chunks.normalMapPS.replace(/\$UV/g, this._uvSource(options.normalMapTransform) + uvOffset);
+            var uv = this._uvSource(options.normalMapTransform) + uvOffset;
+            //if (options.needsNormalFloat) {
+                code += chunks.normalMapFloatPS.replace(/\$UV/g, uv);
+            //} else {
+             //   code += chunks.normalMapPS.replace(/\$UV/g, uv);
+            //}
             code += chunks.TBNPS;
         } else {
             code += chunks.normalVertexPS;
         }
 
         code += chunks.defaultGamma;
+        code += chunks.defaultTonemapping;
+
+        if (options.fog === 'linear') {
+            code += chunks.fogLinearPS;
+        } else if (options.fog === 'exp') {
+            code += chunks.fogExpPS;
+        } else if (options.fog === 'exp2') {
+            code += chunks.fogExp2PS;
+        } else {
+            code += chunks.fogNonePS;
+        }
+
+        if (options.hdrReflection) code += chunks.rgbmPS;
 
         if (options.diffuseMap) {
-            code += chunks.albedoTexPS.replace(/\$UV/g, this._uvSource(options.diffuseMapTransform) + uvOffset);
+            var uv = this._uvSource(options.diffuseMapTransform) + uvOffset
+            if (options.blendMapsWithColors && options.needsDiffuseColor) {
+                code += chunks.albedoTexColorPS.replace(/\$UV/g, uv);
+            } else {
+                code += chunks.albedoTexPS.replace(/\$UV/g, uv);
+            }
         } else {
             code += chunks.albedoColorPS;
         }
 
         if (options.useSpecular) {
+            if (options.specularAA && options.normalMap) {
+                code += chunks.specularAaToksvigPS;
+            } else {
+                code += chunks.specularAaNonePS;
+            }
             if (options.specularMap) {
-                code += chunks.specularityTexPS.replace(/\$UV/g, this._uvSource(options.specularMapTransform) + uvOffset);
+                var uv = this._uvSource(options.specularMapTransform) + uvOffset;
+                if (options.blendMapsWithColors && options.needsSpecularColor) {
+                    code += chunks.specularityTexColorPS.replace(/\$UV/g, uv);
+                } else {
+                    code += chunks.specularityTexPS.replace(/\$UV/g, uv);
+                }
             } else {
                 code += chunks.specularityColorPS;
             }
-            if (options.useFresnel) {
-                code += chunks.defaultFresnel;
+            if (options.fresnelModel > 0) {
+                if (options.fresnelModel === pc.scene.FRESNEL_SIMPLE) {
+                    code += chunks.fresnelSimplePS;
+                } else if (options.fresnelModel === pc.scene.FRESNEL_SCHLICK) {
+                    code += chunks.fresnelSchlickPS;
+                } else if (options.fresnelModel === pc.scene.FRESNEL_COMPLEX) {
+                    code += chunks.fresnelComplexPS;
+                }
             }
         }
 
         if (options.glossMap) {
-            code += chunks.glossinessTexPS.replace(/\$UV/g, this._uvSource(options.glossMapTransform) + uvOffset);
+            var uv = this._uvSource(options.glossMapTransform) + uvOffset;
+            if (options.blendMapsWithColors && options.needsGlossFloat) {
+                code += chunks.glossinessTexFloatPS.replace(/\$UV/g, uv);
+            } else {
+                code += chunks.glossinessTexPS.replace(/\$UV/g, uv);
+            }
         } else {
             code += chunks.glossinessFloatPS;
         }
 
         if (options.opacityMap) {
-            code += chunks.opacityTexPS.replace(/\$UV/g, this._uvSource(options.opacityMapTransform) + uvOffset);
+            var uv = this._uvSource(options.opacityMapTransform) + uvOffset;
+            if (options.blendMapsWithColors && options.needsOpacityFloat) {
+                code += chunks.opacityTexFloatPS.replace(/\$UV/g, uv);
+            } else {
+                code += chunks.opacityTexPS.replace(/\$UV/g, uv);
+            }
         } else {
             code += chunks.opacityFloatPS;
         }
 
         if (options.emissiveMap) {
-            code += chunks.emissionTexPS.replace(/\$UV/g, this._uvSource(options.emissiveMapTransform) + uvOffset);
+            var uv = this._uvSource(options.emissiveMapTransform) + uvOffset;
+            if (options.blendMapsWithColors && options.needsEmissiveColor) {
+                code += chunks.emissionTexColorPS.replace(/\$UV/g, uv);
+            } else {
+                code += chunks.emissionTexPS.replace(/\$UV/g, uv);
+            }
         } else {
             code += chunks.emissionColorPS;
         }
@@ -243,16 +295,36 @@ pc.gfx.programlib.phong = {
         }
 
         if (options.cubeMap) {
-            code += chunks.reflectionCubePS;
+            if (options.prefilteredCubemap) {
+                code += chunks.reflectionPrefilteredCubePS;
+            } else {
+                code += chunks.reflectionCubePS.replace(/\$textureCubeSAMPLE/g, options.hdrReflection? "textureCubeRGBM" : "textureCubeSRGB");
+            }
         }
 
         if (options.sphereMap) {
-            code += device.fragmentUniformsCount>16? chunks.reflectionSpherePS : chunks.reflectionSphereLowPS;
+            var scode = device.fragmentUniformsCount>16? chunks.reflectionSpherePS : chunks.reflectionSphereLowPS;
+            scode = scode.replace(/\$texture2DSAMPLE/g, options.hdrReflection? "texture2DRGBM" : "texture2DSRGB");
+            code += scode;
         }
 
 
         if (options.lightMap) {
             code += chunks.lightmapSinglePS;
+        }
+
+        if (options.aoMap) {
+            code += chunks.aoBakedPS.replace(/\$UV/g, options.aoUvSet===0? "vUv0" : "vUv1");
+        }
+
+        if (options.prefilteredCubemap) {
+            code += chunks.ambientPrefilteredCubePS;
+        } else {
+            code += chunks.ambientConstantPS;
+        }
+
+        if (options.modulateAmbient) {
+            code += "uniform vec3 material_ambient;\n"
         }
 
         if (numShadowLights > 0) {
@@ -261,10 +333,14 @@ pc.gfx.programlib.phong = {
 
         code += chunks.lightDiffuseLambertPS;
         if (options.useSpecular) {
-            code += chunks.defaultSpecular;
-            if (options.sphereMap || options.cubeMap || options.useFresnel) {
-                if (options.useFresnel) {
-                    code += chunks.combineDiffuseSpecularPS; // this one is correct, others are old stuff
+            code += options.shadingModel===pc.scene.SPECULAR_PHONG? chunks.lightSpecularPhongPS : chunks.lightSpecularBlinnPS;
+            if (options.sphereMap || options.cubeMap || (options.fresnelModel > 0)) {
+                if (options.fresnelModel > 0) {
+                    if (options.conserveEnergy) {
+                        code += chunks.combineDiffuseSpecularPS; // this one is correct, others are old stuff
+                    } else {
+                        code += chunks.combineDiffuseSpecularNoConservePS; // if you don't use environment cubemaps, you may consider this
+                    }
                 } else {
                     code += chunks.combineDiffuseSpecularOldPS;
                 }
@@ -282,7 +358,7 @@ pc.gfx.programlib.phong = {
         // FRAGMENT SHADER BODY
         code += chunks.startPS;
 
-        if (lighting) {
+        if (lighting || reflections) {
             code += "   getViewDir(data);\n";
             if (options.heightMap || options.normalMap) {
                 code += "   getTBN(data);\n";
@@ -296,10 +372,10 @@ pc.gfx.programlib.phong = {
 
         code += "   getAlbedo(data);\n";
 
-        if (lighting && options.useSpecular) {
+        if ((lighting && options.useSpecular) || reflections) {
             code += "   getSpecularity(data);\n";
-            if (options.useFresnel) code += "   getFresnel(data);\n";
             code += "   getGlossiness(data);\n";
+            if (options.fresnelModel > 0) code += "   getFresnel(data);\n";
         }
 
         code += "   getOpacity(data);\n";
@@ -309,10 +385,17 @@ pc.gfx.programlib.phong = {
 
         if (options.lightMap) {
                 code += "    addLightmap(data);\n";
+        }
+
+        code += "   addAmbient(data);\n";
+        if (options.modulateAmbient) {
+            code += "   data.diffuseLight *= material_ambient;\n"
+        }
+        if (options.aoMap) {
+                code += "    applyAO(data);\n";
          }
 
-        code += "   addAmbientConstant(data);\n";
-        if (lighting) {
+        if (lighting || reflections) {
             if (options.cubeMap) {
                 code += "   addCubemapReflection(data);\n";
             } else if (options.sphereMap) {
@@ -366,19 +449,6 @@ pc.gfx.programlib.phong = {
         }
         code += "\n";
         code += chunks.endPS;
-
-        // Fog
-        switch (options.fog) {
-            case 'linear':
-                code += getSnippet(device, 'fs_fog_linear');
-                break;
-            case 'exp':
-                code += getSnippet(device, 'fs_fog_exp');
-                break;
-            case 'exp2':
-                code += getSnippet(device, 'fs_fog_exp2');
-                break;
-        }
 
         // Make sure all components are between 0 and 1
         code += getSnippet(device, 'fs_clamp');

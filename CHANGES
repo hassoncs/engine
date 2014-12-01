@@ -3,6 +3,63 @@ PlayCanvas Runtime Changes
 --------------------------
 
 --------
+v0.160.1
+--------
+* Remove excess console logging
+
+--------
+v0.160.0
+--------
+* Lots of changes in shading, moving towards physically based rendering
+* Added tonemapping and exposure in pack settings
+* Support tinting textures in materials
+* Use RGB format for jpg textures or RGBA otherwise
+* Added new cubemap assets
+* Simplified checks for undefined
+* Added user strict to graphics API files
+* Removed WebGL validation
+* Optimized call to getMotionState
+* Can now create a skybox using a cubemap texture
+* Deferred texture and framebuffer creation until they are required by the graphics device
+* [FIX] Fog not blending correctly
+* [FIX] Tonemapping and fog for particles
+* [FIX] Mouse input example
+* [FIX] Wrote namespace for LIGHTTYPE enum.
+* [FIX] HTML5 Audio API fallback works again. This is relevant to IE that doesn't support Web Audio yet.
+* [FIX] Picking now works for transparent and/or depth write disabled meshes.
+
+--------
+v0.159.4
+--------
+* [FIX] particlesystem component reset function now works for one shots if lifetime is less than reset interval.
+
+--------
+v0.159.3
+--------
+* [FIX] Emissive maps work again.
+* [FIX] pc.Curve with no keys
+* Added CURVE_CATMULL and CURVE_CARDINAL to pc.Curve()
+* Added filter for shadowResolution to only show up when castShadows is true.
+
+--------
+v0.159.2
+--------
+* [FIX] Cloning CurveSet
+* [FIX] Cloning ParticleSystem
+
+--------
+v0.159.1
+--------
+* Added metadata to particle system curves to allow 'between two curves' editing in Designer
+* Changed default values of particle system attributes
+* Removed maxEmissionTime from particle system
+* [FIX] Issues with spawnBounds and wrapBounds
+* [FIX] Appearance of different blend modes for particles
+* [FIX] Shadow resolution is now available for all light types
+* [FIX] CurveSet cloning
+* Updated component attributes descriptions
+
+--------
 v0.159.0
 --------
 * Added point light shadows
