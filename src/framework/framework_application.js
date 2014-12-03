@@ -45,9 +45,6 @@ pc.extend(pc.fw, function () {
         // Create the graphics device
         this.graphicsDevice = new pc.gfx.Device(canvas);
 
-        // Enable validation of each WebGL command
-        this.graphicsDevice.enableValidation(false);
-
         var registry = new pc.fw.ComponentSystemRegistry();
 
         this.audioManager = new pc.audio.AudioManager();
@@ -81,6 +78,7 @@ pc.extend(pc.fw, function () {
         loader.registerHandler(pc.resources.ImageRequest, new pc.resources.ImageResourceHandler());
         loader.registerHandler(pc.resources.MaterialRequest, new pc.resources.MaterialResourceHandler( this.graphicsDevice, this.context.assets));
         loader.registerHandler(pc.resources.TextureRequest, new pc.resources.TextureResourceHandler(this.graphicsDevice));
+        loader.registerHandler(pc.resources.CubemapRequest, new pc.resources.CubemapResourceHandler( this.graphicsDevice, this.context.assets));
         loader.registerHandler(pc.resources.ModelRequest, new pc.resources.ModelResourceHandler(this.graphicsDevice, this.context.assets));
         loader.registerHandler(pc.resources.AnimationRequest, new pc.resources.AnimationResourceHandler());
         loader.registerHandler(pc.resources.PackRequest, new pc.resources.PackResourceHandler(registry, options.depot));
@@ -107,6 +105,7 @@ pc.extend(pc.fw, function () {
         var picksys = new pc.fw.PickComponentSystem(this.context);
         var audiosourcesys = new pc.fw.AudioSourceComponentSystem(this.context, this.audioManager);
         var audiolistenersys = new pc.fw.AudioListenerComponentSystem(this.context, this.audioManager);
+        var particlesystemsys = new pc.fw.ParticleSystemComponentSystem(this.context);
 
         var designersys = new pc.fw.DesignerComponentSystem(this.context);
 
@@ -127,16 +126,16 @@ pc.extend(pc.fw, function () {
 
         // Depending on browser add the correct visibiltychange event and store the name of the hidden attribute
         // in this._hiddenAttr.
-        if (typeof document.hidden !== 'undefined') {
+        if (document.hidden !== undefined) {
             this._hiddenAttr = 'hidden';
             document.addEventListener('visibilitychange', this.onVisibilityChange.bind(this), false);
-        } else if (typeof document.mozHidden !== 'undefined') {
+        } else if (document.mozHidden !== undefined) {
             this._hiddenAttr = 'mozHidden';
             document.addEventListener('mozvisibilitychange', this.onVisibilityChange.bind(this), false);
-        } else if (typeof document.msHidden !== 'undefined') {
+        } else if (document.msHidden !== undefined) {
             this._hiddenAttr = 'msHidden';
             document.addEventListener('msvisibilitychange', this.onVisibilityChange.bind(this), false);
-        } else if (typeof document.webkitHidden !== 'undefined') {
+        } else if (document.webkitHidden !== undefined) {
             this._hiddenAttr = 'webkitHidden';
             document.addEventListener('webkitvisibilitychange', this.onVisibilityChange.bind(this), false);
         }
@@ -179,7 +178,7 @@ pc.extend(pc.fw, function () {
                     pc.fw.ComponentSystem.postInitialize(pack.hierarchy);
 
                     // Initialise pack settings
-                    if (this.context.systems.rigidbody && typeof(Ammo) !== 'undefined') {
+                    if (this.context.systems.rigidbody && typeof Ammo !== 'undefined') {
                         var gravity = pack.settings.physics.gravity;
                         this.context.systems.rigidbody.setGravity(gravity[0], gravity[1], gravity[2]);
                     }
@@ -194,6 +193,14 @@ pc.extend(pc.fw, function () {
                     this.context.scene.fogEnd = pack.settings.render.fog_end;
                     this.context.scene.fogDensity = pack.settings.render.fog_density;
                     this.context.scene.shadowDistance = pack.settings.render.shadow_distance;
+                    this.context.scene.gammaCorrection = pack.settings.render.gamma_correction;
+                    this.context.scene.toneMapping = pack.settings.render.tonemapping;
+                    this.context.scene.exposure = pack.settings.render.exposure;
+
+                    if (pack.settings.render.skybox) {
+                        var skybox = this.context.assets.getAssetById(pack.settings.render.skybox);
+                        this.context.scene.skybox = skybox ? skybox.resource : null;
+                    }
 
                     success(pack);
                     this.context.loader.off('progress', progress);
@@ -234,6 +241,7 @@ pc.extend(pc.fw, function () {
                 load();
             }
         },
+
 
         /**
          * @function
@@ -414,7 +422,7 @@ pc.extend(pc.fw, function () {
             if (error) {
                 document.addEventListener('fullscreenerror', e, false);
             }
-            element.requestFullscreen();
+            element.requestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
         },
 
         /**
@@ -609,22 +617,22 @@ pc.extend(pc.fw, function () {
                     break;
 
                 case pc.fw.LiveLinkMessageType.UPDATE_ASSETCACHE:
-                    var resourceId;
+                    var id;
 
                     // Add new and Update existing assets
-                    for (resourceId in msg.content.assets) {
-                        var asset = this.context.assets.getAssetByResourceId(resourceId);
+                    for (id in msg.content.assets) {
+                        var asset = this.context.assets.getAssetById(id);
                         if (!asset) {
-                            var assetData = msg.content.assets[resourceId];
-                            this.context.assets.createAndAddAsset(resourceId, assetData);
+                            var assetData = msg.content.assets[id];
+                            this.context.assets.createAndAddAsset(id, assetData);
                         } else {
-                            pc.extend(asset, msg.content.assets[resourceId]);
+                            pc.extend(asset, msg.content.assets[id]);
                         }
                     }
 
                     // Delete removed assets
-                    for (resourceId in msg.content.deleted) {
-                        var asset = this.context.assets.getAssetByResourceId(resourceId);
+                    for (id in msg.content.deleted) {
+                        var asset = this.context.assets.getAssetById(id);
                         if (asset) {
                             this.context.assets.removeAsset(asset);
                         }
@@ -669,6 +677,9 @@ pc.extend(pc.fw, function () {
                                         } else {
                                             entity[componentName][attributeName] = new attribute.RuntimeType(value[0], value[1], value[2], value[3]);
                                         }
+                                    } else if (attribute.RuntimeType === pc.Curve || attribute.RuntimeType === pc.CurveSet) {
+                                        entity[componentName][attributeName] = new attribute.RuntimeType(value.keys);
+                                        entity[componentName][attributeName].type = value.type;
                                     } else {
                                         entity[componentName][attributeName] = new attribute.RuntimeType(value);
                                     }
@@ -705,8 +716,7 @@ pc.extend(pc.fw, function () {
         _linkReparentEntity: function (guid, parentId, index) {
             var entity = this.context.root.findByGuid(guid);
             var parent = this.context.root.findByGuid(parentId);
-            // TODO: use index to insert child into child list
-            entity.reparent(parent);
+            entity.reparent(parent, index);
         },
 
         /**
@@ -748,8 +758,8 @@ pc.extend(pc.fw, function () {
             }
         },
 
-        _linkUpdateAsset: function (guid, attribute, value) {
-            var asset = this.context.assets.getAssetByResourceId(guid);
+        _linkUpdateAsset: function (id, attribute, value) {
+            var asset = this.context.assets.getAssetById(id);
             if (asset) {
                 asset[attribute] = value;
                 asset.fire('change', asset, attribute, value);
@@ -760,7 +770,7 @@ pc.extend(pc.fw, function () {
             var ambient = settings.render.global_ambient;
             this.context.scene.ambientLight.set(ambient[0], ambient[1], ambient[2]);
 
-            if (this.context.systems.rigidbody && typeof(Ammo) !== 'undefined') {
+            if (this.context.systems.rigidbody && typeof Ammo !== 'undefined') {
                 var gravity = settings.physics.gravity;
                 this.context.systems.rigidbody.setGravity(gravity[0], gravity[1], gravity[2]);
             }
@@ -774,6 +784,29 @@ pc.extend(pc.fw, function () {
             this.context.scene.fogDensity = settings.render.fog_density;
 
             this.context.scene.shadowDistance = settings.render.shadow_distance;
+
+            this.context.scene.gammaCorrection = settings.render.gamma_correction;
+            this.context.scene.toneMapping = settings.render.tonemapping;
+            this.context.scene.exposure = settings.render.exposure;
+
+            if (settings.render.skybox) {
+                var skybox = this.context.assets.getAssetById(settings.render.skybox);
+                if (!skybox) {
+                    pc.log.error('Could not initialize scene skybox. Missing cubemap asset ' + settings.render.skybox);
+                } else {
+                    if (!skybox.resource) {
+                        this.context.assets.load([skybox]).then(function (resources){
+                            this.context.scene.skybox = resources[0];
+                        }.bind(this), function (error) {
+                            pc.log.error('Could not initialize scene skybox. Missing cubemap asset ' + settings.render.skybox);
+                        });
+                    } else {
+                        this.context.scene.skybox = skybox.resource;
+                    }
+                }
+            } else {
+                this.context.scene.skybox = null;
+            }
         }
     };
 

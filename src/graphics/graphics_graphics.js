@@ -377,22 +377,34 @@ pc.gfx = {
     PRIMITIVE_LINES: 1,
     /**
      * @enum pc.gfx.PRIMITIVE
+     * @name pc.gfx.PRIMITIVE_LINELOOP
+     * @description List of points that are linked sequentially by line segments, with a closing line segment between the last and first points.
+     */
+    PRIMITIVE_LINELOOP: 2,
+    /**
+     * @enum pc.gfx.PRIMITIVE
      * @name pc.gfx.PRIMITIVE_LINESTRIP
      * @description List of points that are linked sequentially by line segments.
      */
-    PRIMITIVE_LINESTRIP: 2,
+    PRIMITIVE_LINESTRIP: 3,
     /**
      * @enum pc.gfx.PRIMITIVE
      * @name pc.gfx.PRIMITIVE_TRIANGLES
      * @description Discrete list of triangles.
      */
-    PRIMITIVE_TRIANGLES: 3,
+    PRIMITIVE_TRIANGLES: 4,
     /**
      * @enum pc.gfx.PRIMITIVE
      * @name pc.gfx.PRIMITIVE_TRISTRIP
      * @description Connected strip of triangles where a specified vertex forms a triangle using the previous two.
      */
-    PRIMITIVE_TRISTRIP: 4,
+    PRIMITIVE_TRISTRIP: 5,
+    /**
+     * @enum pc.gfx.PRIMITIVE
+     * @name pc.gfx.PRIMITIVE_TRIFAN
+     * @description Connected fan of triangles where the first vertex forms triangles with the following pairs of vertices.
+     */
+    PRIMITIVE_TRIFAN: 6,
 
     /**
      * @enum pc.gfx.SEMANTIC
@@ -588,3 +600,23 @@ pc.gfx = {
      */
     TEXTURELOCK_WRITE: 2
 };
+
+pc.extend(pc, {
+    UNIFORMTYPE_BOOL: 0,
+    UNIFORMTYPE_INT: 1,
+    UNIFORMTYPE_FLOAT: 2,
+    UNIFORMTYPE_VEC2: 3,
+    UNIFORMTYPE_VEC3: 4,
+    UNIFORMTYPE_VEC4: 5,
+    UNIFORMTYPE_IVEC2: 6,
+    UNIFORMTYPE_IVEC3: 7,
+    UNIFORMTYPE_IVEC4: 8,
+    UNIFORMTYPE_BVEC2: 9,
+    UNIFORMTYPE_BVEC3: 10,
+    UNIFORMTYPE_BVEC4: 11,
+    UNIFORMTYPE_MAT2: 12,
+    UNIFORMTYPE_MAT3: 13,
+    UNIFORMTYPE_MAT4: 14,
+    UNIFORMTYPE_TEXTURE2D: 15,
+    UNIFORMTYPE_TEXTURECUBE: 16
+});

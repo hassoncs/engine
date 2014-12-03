@@ -1,6 +1,5 @@
-pc.gfx.precalculatedTangents = true;
-
 pc.extend(pc.gfx, function () {
+    'use strict';
 
     var EVENT_RESIZE = 'resizecanvas';
 
@@ -26,7 +25,7 @@ pc.extend(pc.gfx, function () {
     };
 
     var _createContext = function (canvas, options) {
-        var names = ["webgl", "experimental-webgl", "webkit-3d", "moz-webgl"];
+        var names = ["webgl", "experimental-webgl"];
         var context = null;
         for (var i = 0; i < names.length; i++) {
             try {
@@ -39,6 +38,31 @@ pc.extend(pc.gfx, function () {
         return context;
     };
 
+    var _downsampleImage = function (image, size) {
+        var srcW = image.width;
+        var srcH = image.height;
+
+        if ((srcW > size) || (srcH > size)) {
+            var scale = size / Math.max(srcW, srcH);
+            var dstW = Math.floor(srcW * scale);
+            var dstH = Math.floor(srcH * scale);
+
+            console.warn('Image dimensions larger than max supported texture size of ' + size + '. ' +
+                         'Resizing from ' + srcW + ', ' + srcH + ' to ' + dstW + ', ' + dstH + '.');
+
+            var canvas = document.createElement('canvas');
+            canvas.width = dstW;
+            canvas.height = dstH;
+
+            var context = canvas.getContext('2d');
+            context.drawImage(image, 0, 0, srcW, srcH, 0, 0, dstW, dstH);
+
+            return canvas;
+        }
+
+        return image;
+    };
+
     /**
      * @name pc.gfx.Device
      * @class The graphics device manages the underlying graphics context. It is responsible
@@ -49,6 +73,9 @@ pc.extend(pc.gfx, function () {
      * @param {Object} canvas The canvas to which the graphics device is tied.
      * @property {Number} width Width of the back buffer in pixels (read-only).
      * @property {Number} height Height of the back buffer in pixels (read-only).
+     * @property {Number} maxAnisotropy The maximum supported texture anisotropy setting (read-only).
+     * @property {Number} maxCubeMapSize The maximum supported dimension of a cube map (read-only).
+     * @property {Number} maxTextureSize The maximum supported dimension of a texture (read-only).
      * is attached is fullscreen or not.
      */
 
@@ -78,6 +105,7 @@ pc.extend(pc.gfx, function () {
 
         // Retrieve the WebGL context
         this.gl = _createContext(canvas, {alpha: false});
+        var gl = this.gl;
 
         if (!this.gl) {
             throw new pc.gfx.ContextCreationError();
@@ -97,25 +125,8 @@ pc.extend(pc.gfx, function () {
             this.vertexBuffers = [];
             this.precision     = 'highp';
 
-            var gl = this.gl;
-            logINFO("Device started");
-            logINFO("WebGL version:                " + gl.getParameter(gl.VERSION));
-            logINFO("WebGL shader version:         " + gl.getParameter(gl.SHADING_LANGUAGE_VERSION));
-            logINFO("WebGL vendor:                 " + gl.getParameter(gl.VENDOR));
-            logINFO("WebGL renderer:               " + gl.getParameter(gl.RENDERER));
-            logINFO("WebGL extensions:             " + gl.getSupportedExtensions());
-
-            logINFO("WebGL max vertex attribs:     " + gl.getParameter(gl.MAX_VERTEX_ATTRIBS));
-            logINFO("WebGL max vshader vectors:    " + gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS));
-            logINFO("WebGL max varying vectors:    " + gl.getParameter(gl.MAX_VARYING_VECTORS));
-            logINFO("WebGL max fshader vectors:    " + gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS));
-
-            logINFO("WebGL max combined tex units: " + gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS));
-            logINFO("WebGL max vertex tex units:   " + gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS));
-            logINFO("WebGL max tex units:          " + gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS));
-
-            logINFO("WebGL max texture size:       " + gl.getParameter(gl.MAX_TEXTURE_SIZE));
-            logINFO("WebGL max cubemap size:       " + gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE));
+            this.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+            this.maxCubeMapSize = gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE);
 
             // Query the precision supported by ints and floats in vertex and fragment shaders
             var vertexShaderPrecisionHighpFloat = gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_FLOAT);
@@ -153,12 +164,10 @@ pc.extend(pc.gfx, function () {
                 flags: pc.gfx.CLEARFLAG_COLOR | pc.gfx.CLEARFLAG_DEPTH
             };
 
-            this.glPrimitive = [
-                gl.POINTS,
-                gl.LINES,
-                gl.LINE_STRIP,
-                gl.TRIANGLES,
-                gl.TRIANGLE_STRIP
+            this.glAddress = [
+                gl.REPEAT,
+                gl.CLAMP_TO_EDGE,
+                gl.MIRRORED_REPEAT
             ];
 
             this.glBlendEquation = [
@@ -192,6 +201,25 @@ pc.extend(pc.gfx, function () {
                 gl.STENCIL_BUFFER_BIT | gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT
             ];
 
+            this.glFilter = [
+                gl.NEAREST,
+                gl.LINEAR,
+                gl.NEAREST_MIPMAP_NEAREST,
+                gl.NEAREST_MIPMAP_LINEAR,
+                gl.LINEAR_MIPMAP_NEAREST,
+                gl.LINEAR_MIPMAP_LINEAR
+            ];
+
+            this.glPrimitive = [
+                gl.POINTS,
+                gl.LINES,
+                gl.LINE_LOOP,
+                gl.LINE_STRIP,
+                gl.TRIANGLES,
+                gl.TRIANGLE_STRIP,
+                gl.TRIANGLE_FAN
+            ];
+
             this.glType = [
                 gl.BYTE,
                 gl.UNSIGNED_BYTE,
@@ -209,53 +237,41 @@ pc.extend(pc.gfx, function () {
             this.maxVertexTextures = gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS);
             this.supportsBoneTextures = this.extTextureFloat && this.maxVertexTextures > 0;
 
+            this.fragmentUniformsCount = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS);
+
             this.extDepthTexture = null; //gl.getExtension("WEBKIT_WEBGL_depth_texture");
             this.extStandardDerivatives = gl.getExtension("OES_standard_derivatives");
             if (this.extStandardDerivatives) {
                 gl.hint(this.extStandardDerivatives.FRAGMENT_SHADER_DERIVATIVE_HINT_OES, gl.NICEST);
             }
 
-            this.maxTextureMaxAnisotropy = 1;
             this.extTextureFilterAnisotropic = gl.getExtension('EXT_texture_filter_anisotropic');
             if (!this.extTextureFilterAnisotropic) {
                 this.extTextureFilterAnisotropic = gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
             }
-            if (this.extTextureFilterAnisotropic) {
-                this.maxTextureMaxAnisotropy = gl.getParameter(this.extTextureFilterAnisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
-            }
+
             this.extCompressedTextureS3TC = gl.getExtension('WEBKIT_WEBGL_compressed_texture_s3tc');
             if (this.extCompressedTextureS3TC) {
                 var formats = gl.getParameter(gl.COMPRESSED_TEXTURE_FORMATS);
-                var formatMsg = "WebGL compressed texture formats:";
                 for (var i = 0; i < formats.length; i++) {
                     switch (formats[i]) {
                         case this.extCompressedTextureS3TC.COMPRESSED_RGB_S3TC_DXT1_EXT:
-                            formatMsg += ' COMPRESSED_RGB_S3TC_DXT1_EXT';
                             break;
                         case this.extCompressedTextureS3TC.COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                            formatMsg += ' COMPRESSED_RGBA_S3TC_DXT1_EXT';
                             break;
                         case this.extCompressedTextureS3TC.COMPRESSED_RGBA_S3TC_DXT3_EXT:
-                            formatMsg += ' COMPRESSED_RGBA_S3TC_DXT3_EXT';
                             break;
                         case this.extCompressedTextureS3TC.COMPRESSED_RGBA_S3TC_DXT5_EXT:
-                            formatMsg += ' COMPRESSED_RGBA_S3TC_DXT5_EXT';
                             break;
                         default:
-                            formatMsg += ' UNKOWN(' + formats[i] + ')';
                             break;
                     }
                 }
-                logINFO(formatMsg);
             }
+
             this.extDrawBuffers = gl.getExtension('EXT_draw_buffers');
-            if (this.extDrawBuffers) {
-                logINFO("WebGL max draw buffers:       " + gl.getParameter(this.extDrawBuffers.MAX_DRAW_BUFFERS_EXT));
-                logINFO("WebGL max color attachments:  " + gl.getParameter(this.extDrawBuffers.MAX_COLOR_ATTACHMENTS_EXT));
-            } else {
-                logINFO("WebGL max draw buffers:       " + 1);
-                logINFO("WebGL max color attachments:  " + 1);
-            }
+            this.maxDrawBuffers = this.extDrawBuffers ? gl.getParameter(this.extDrawBuffers.MAX_DRAW_BUFFERS_EXT) : 1;
+            this.maxColorAttachments = this.extDrawBuffers ? gl.getParameter(this.extDrawBuffers.MAX_COLOR_ATTACHMENTS_EXT) : 1;
 
             // Create the default render target
             this.renderTarget = null;
@@ -265,26 +281,26 @@ pc.extend(pc.gfx, function () {
 
             // Define the uniform commit functions
             this.commitFunction = {};
-            this.commitFunction[pc.gfx.ShaderInputType.BOOL ] = function (locationId, value) { gl.uniform1i(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.INT  ] = function (locationId, value) { gl.uniform1i(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.FLOAT] = function (locationId, value) {
+            this.commitFunction[pc.UNIFORMTYPE_BOOL ] = function (locationId, value) { gl.uniform1i(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_INT  ] = function (locationId, value) { gl.uniform1i(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_FLOAT] = function (locationId, value) {
                 if (typeof value == "number")
                     gl.uniform1f(locationId, value);
                 else
                     gl.uniform1fv(locationId, value);
                 };
-            this.commitFunction[pc.gfx.ShaderInputType.VEC2 ] = function (locationId, value) { gl.uniform2fv(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.VEC3 ] = function (locationId, value) { gl.uniform3fv(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.VEC4 ] = function (locationId, value) { gl.uniform4fv(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.IVEC2] = function (locationId, value) { gl.uniform2iv(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.BVEC2] = function (locationId, value) { gl.uniform2iv(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.IVEC3] = function (locationId, value) { gl.uniform3iv(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.BVEC3] = function (locationId, value) { gl.uniform3iv(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.IVEC4] = function (locationId, value) { gl.uniform4iv(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.BVEC4] = function (locationId, value) { gl.uniform4iv(locationId, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.MAT2 ] = function (locationId, value) { gl.uniformMatrix2fv(locationId, false, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.MAT3 ] = function (locationId, value) { gl.uniformMatrix3fv(locationId, false, value); };
-            this.commitFunction[pc.gfx.ShaderInputType.MAT4 ] = function (locationId, value) { gl.uniformMatrix4fv(locationId, false, value); };
+            this.commitFunction[pc.UNIFORMTYPE_VEC2]  = function (locationId, value) { gl.uniform2fv(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_VEC3]  = function (locationId, value) { gl.uniform3fv(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_VEC4]  = function (locationId, value) { gl.uniform4fv(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_IVEC2] = function (locationId, value) { gl.uniform2iv(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_BVEC2] = function (locationId, value) { gl.uniform2iv(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_IVEC3] = function (locationId, value) { gl.uniform3iv(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_BVEC3] = function (locationId, value) { gl.uniform3iv(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_IVEC4] = function (locationId, value) { gl.uniform4iv(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_BVEC4] = function (locationId, value) { gl.uniform4iv(locationId, value); };
+            this.commitFunction[pc.UNIFORMTYPE_MAT2]  = function (locationId, value) { gl.uniformMatrix2fv(locationId, false, value); };
+            this.commitFunction[pc.UNIFORMTYPE_MAT3]  = function (locationId, value) { gl.uniformMatrix3fv(locationId, false, value); };
+            this.commitFunction[pc.UNIFORMTYPE_MAT4]  = function (locationId, value) { gl.uniformMatrix4fv(locationId, false, value); };
 
             // Set the initial render state
             this.setBlending(false);
@@ -341,10 +357,7 @@ pc.extend(pc.gfx, function () {
             gl.vertexAttribPointer(0, 4, gl.UNSIGNED_BYTE, false, 4, 0);
             this.supportsUnsignedByte = (gl.getError() === 0);
             gl.deleteBuffer(bufferId);
-
-
         }).call(this);
-
     };
 
     Device.prototype = {
@@ -408,16 +421,66 @@ pc.extend(pc.gfx, function () {
          * and pc.gfx.Device#updateEnd must not be nested.
          */
         updateBegin: function () {
-            logASSERT(this.canvas !== null, "Device has not been started");
+            var gl = this.gl;
 
             this.boundBuffer = null;
             this.indexBuffer = null;
 
             // Set the render target
-            if (this.renderTarget) {
-                this.renderTarget.bind();
+            var target = this.renderTarget;
+            if (target) {
+                // Create a new WebGL frame buffer object
+                if (!target._glFrameBuffer) {
+                    target._glFrameBuffer = gl.createFramebuffer();
+
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, target._glFrameBuffer);
+
+                    if (!target._colorBuffer._glTextureId) {
+                        this.setTexture(target._colorBuffer, 0);
+                    }
+
+                    gl.framebufferTexture2D(gl.FRAMEBUFFER,
+                                            gl.COLOR_ATTACHMENT0,
+                                            target._colorBuffer._cubemap ? gl.TEXTURE_CUBE_MAP_POSITIVE_X + target._face : gl.TEXTURE_2D,
+                                            target._colorBuffer._glTextureId,
+                                            0);
+
+                    if (target._depth) {
+                        if (!target._glDepthBuffer) {
+                            target._glDepthBuffer = gl.createRenderbuffer();
+                        }
+
+                        gl.bindRenderbuffer(gl.RENDERBUFFER, target._glDepthBuffer);
+                        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, target.width, target.height);
+                        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+
+                        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, target._glDepthBuffer);
+                    }
+
+                    // Ensure all is well
+                    var status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+                    switch (status) {
+                        case gl.FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
+                            console.error("ERROR: FRAMEBUFFER_INCOMPLETE_ATTACHMENT");
+                            break;
+                        case gl.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
+                            console.error("ERROR: FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT");
+                            break;
+                        case gl.FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
+                            console.error("ERROR: FRAMEBUFFER_INCOMPLETE_DIMENSIONS");
+                            break;
+                        case gl.FRAMEBUFFER_UNSUPPORTED:
+                            console.error("ERROR: FRAMEBUFFER_UNSUPPORTED");
+                            break;
+                        case gl.FRAMEBUFFER_COMPLETE:
+                            break;
+                        default:
+                            break;
+                    }
+                } else {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, target._glFrameBuffer);
+                }
             } else {
-                var gl = this.gl;
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             }
 
@@ -434,6 +497,224 @@ pc.extend(pc.gfx, function () {
          * and pc.gfx.Device#updateEnd must not be nested.
          */
         updateEnd: function () {
+            var gl = this.gl;
+
+            // Unset the render target
+            var target = this.renderTarget;
+            if (target) {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            }
+        },
+
+        initializeTexture: function (texture) {
+            var gl = this.gl;
+
+            texture._glTextureId = gl.createTexture();
+
+            texture._glTarget = texture._cubemap ? gl.TEXTURE_CUBE_MAP : gl.TEXTURE_2D;
+
+            switch (texture._format) {
+                case pc.gfx.PIXELFORMAT_A8:
+                    texture._glFormat = gl.ALPHA;
+                    texture._glInternalFormat = gl.ALPHA;
+                    texture._glPixelType = gl.UNSIGNED_BYTE;
+                    break;
+                case pc.gfx.PIXELFORMAT_L8:
+                    texture._glFormat = gl.LUMINANCE;
+                    texture._glInternalFormat = gl.LUMINANCE;
+                    texture._glPixelType = gl.UNSIGNED_BYTE;
+                    break;
+                case pc.gfx.PIXELFORMAT_L8_A8:
+                    texture._glFormat = gl.LUMINANCE_ALPHA;
+                    texture._glInternalFormat = gl.LUMINANCE_ALPHA;
+                    texture._glPixelType = gl.UNSIGNED_BYTE;
+                    break;
+                case pc.gfx.PIXELFORMAT_R5_G6_B5:
+                    texture._glFormat = gl.RGB;
+                    texture._glInternalFormat = gl.RGB;
+                    texture._glPixelType = gl.UNSIGNED_SHORT_5_6_5;
+                    break;
+                case pc.gfx.PIXELFORMAT_R5_G5_B5_A1:
+                    texture._glFormat = gl.RGBA;
+                    texture._glInternalFormat = gl.RGBA;
+                    texture._glPixelType = gl.UNSIGNED_SHORT_5_5_5_1;
+                    break;
+                case pc.gfx.PIXELFORMAT_R4_G4_B4_A4:
+                    texture._glFormat = gl.RGBA;
+                    texture._glInternalFormat = gl.RGBA;
+                    texture._glPixelType = gl.UNSIGNED_SHORT_4_4_4_4;
+                    break;
+                case pc.gfx.PIXELFORMAT_R8_G8_B8:
+                    texture._glFormat = gl.RGB;
+                    texture._glInternalFormat = gl.RGB;
+                    texture._glPixelType = gl.UNSIGNED_BYTE;
+                    break;
+                case pc.gfx.PIXELFORMAT_R8_G8_B8_A8:
+                    texture._glFormat = gl.RGBA;
+                    texture._glInternalFormat = gl.RGBA;
+                    texture._glPixelType = gl.UNSIGNED_BYTE;
+                    break;
+                case pc.gfx.PIXELFORMAT_DXT1:
+                    ext = this.extCompressedTextureS3TC;
+                    texture._glFormat = gl.RGB;
+                    texture._glInternalFormat = ext.COMPRESSED_RGB_S3TC_DXT1_EXT;
+                    break;
+                case pc.gfx.PIXELFORMAT_DXT3:
+                    ext = this.extCompressedTextureS3TC;
+                    texture._glFormat = gl.RGBA;
+                    texture._glInternalFormat = ext.COMPRESSED_RGBA_S3TC_DXT3_EXT;
+                    break;
+                case pc.gfx.PIXELFORMAT_DXT5:
+                    ext = this.extCompressedTextureS3TC;
+                    texture._glFormat = gl.RGBA;
+                    texture._glInternalFormat = ext.COMPRESSED_RGBA_S3TC_DXT5_EXT;
+                    break;
+                case pc.gfx.PIXELFORMAT_RGB16F:
+                    ext = this.extTextureHalfFloat;
+                    texture._glFormat = gl.RGB;
+                    texture._glInternalFormat = gl.RGB;
+                    texture._glPixelType = ext.HALF_FLOAT_OES;
+                    break;
+                case pc.gfx.PIXELFORMAT_RGBA16F:
+                    ext = this.extTextureHalfFloat;
+                    texture._glFormat = gl.RGBA;
+                    texture._glInternalFormat = gl.RGBA;
+                    texture._glPixelType = ext.HALF_FLOAT_OES;
+                    break;
+                case pc.gfx.PIXELFORMAT_RGB32F:
+                    texture._glFormat = gl.RGB;
+                    texture._glInternalFormat = gl.RGB;
+                    texture._glPixelType = gl.FLOAT;
+                    break;
+                case pc.gfx.PIXELFORMAT_RGBA32F:
+                    texture._glFormat = gl.RGBA;
+                    texture._glInternalFormat = gl.RGBA;
+                    texture._glPixelType = gl.FLOAT;
+                    break;
+            }
+        },
+
+        uploadTexture: function (texture) {
+            var gl = this.gl;
+
+            var baseLevel = texture._levels[0];
+
+            if (texture._cubemap) {
+                var face;
+
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+                gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+                if ((baseLevel[0] instanceof HTMLCanvasElement) || (baseLevel[0] instanceof HTMLImageElement) || (baseLevel[0] instanceof HTMLVideoElement)) {
+                    // Upload the image, canvas or video
+                    for (face = 0; face < 6; face++) {
+                        var src = baseLevel[face];
+                        // Downsize images that are too large to be used as cube maps
+                        if (src instanceof HTMLImageElement) {
+                            if (src.width > this.maxCubeMapSize || src.height > this.maxCubeMapSize) {
+                                src = _downsampleImage(src, this.maxCubeMapSize);
+                            }
+                        }
+
+                        gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + face, 
+                                      0, 
+                                      texture._glInternalFormat,
+                                      texture._glFormat,
+                                      texture._glPixelType,
+                                      src);
+                    }
+                } else {
+                    // Upload the byte array
+                    for (face = 0; face < 6; face++) {
+                        gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + face,
+                                      0,
+                                      texture._glInternalFormat,
+                                      texture._width,
+                                      texture._height,
+                                      0,
+                                      texture._glFormat,
+                                      texture._glPixelType,
+                                      baseLevel[face]);
+                    }
+                }
+            } else {
+                if ((baseLevel instanceof HTMLCanvasElement) || (baseLevel instanceof HTMLImageElement) || (baseLevel instanceof HTMLVideoElement)) {
+                    // Downsize images that are too large to be used as textures
+                    if (baseLevel instanceof HTMLImageElement) {
+                        if (baseLevel.width > this.maxTextureSize || baseLevel.height > this.maxTextureSize) {
+                            baseLevel = _downsampleImage(baseLevel, this.maxTextureSize);
+                        }
+                    }
+
+                    // Upload the image, canvas or video
+                    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+                    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+                    gl.texImage2D(gl.TEXTURE_2D,
+                                  0,
+                                  texture._glInternalFormat,
+                                  texture._glFormat,
+                                  texture._glPixelType,
+                                  baseLevel);
+                } else {
+                    // Upload the byte array
+                    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+                    if (texture._compressed) {
+                        gl.compressedTexImage2D(gl.TEXTURE_2D,
+                                                0,
+                                                texture._glInternalFormat,
+                                                texture._width,
+                                                texture._height,
+                                                0,
+                                                baseLevel);
+                    } else {
+                        gl.texImage2D(gl.TEXTURE_2D,
+                                      0,
+                                      texture._glInternalFormat,
+                                      texture._width,
+                                      texture._height,
+                                      0,
+                                      texture._glFormat,
+                                      texture._glPixelType,
+                                      baseLevel);
+                    }
+                }
+            }
+
+            if (texture.autoMipmap && pc.math.powerOfTwo(texture._width) && pc.math.powerOfTwo(texture._height) && texture._levels.length === 1) {
+                gl.generateMipmap(texture._glTarget);
+            }
+        },
+
+        setTexture: function (texture, textureUnit) {
+            var gl = this.gl;
+
+            if (!texture._glTextureId) {
+                this.initializeTexture(texture);
+            }
+
+            gl.activeTexture(gl.TEXTURE0 + textureUnit);
+            if (this.textureUnits[textureUnit] !== texture) {
+                gl.bindTexture(texture._glTarget, texture._glTextureId);
+                this.textureUnits[textureUnit] = texture;
+            }
+
+            gl.texParameteri(texture._glTarget, gl.TEXTURE_MIN_FILTER, this.glFilter[texture._minFilter]);
+            gl.texParameteri(texture._glTarget, gl.TEXTURE_MAG_FILTER, this.glFilter[texture._magFilter]);
+
+            gl.texParameteri(texture._glTarget, gl.TEXTURE_WRAP_S, this.glAddress[texture._addressU]);
+            gl.texParameteri(texture._glTarget, gl.TEXTURE_WRAP_T, this.glAddress[texture._addressV]);
+
+            var ext = this.extTextureFilterAnisotropic;
+            if (ext) {
+                var maxAnisotropy = this.maxAnisotropy;
+                var anisotropy = texture.anisotropy;
+                anisotropy = Math.min(anisotropy, maxAnisotropy);
+                gl.texParameterf(texture._glTarget, ext.TEXTURE_MAX_ANISOTROPY_EXT, anisotropy);
+            }
+
+            if (texture._needsUpload) {
+                this.uploadTexture(texture);
+                texture._needsUpload = false;
+            }
         },
 
         /**
@@ -509,11 +790,8 @@ pc.extend(pc.gfx, function () {
 
                 if (samplerValue instanceof pc.gfx.Texture) {
                     texture = samplerValue;
-                    if (this.textureUnits[textureUnit] !== texture) {
-                        gl.activeTexture(gl.TEXTURE0 + textureUnit);
-                        texture.bind();
-                        this.textureUnits[textureUnit] = texture;
-                    }
+                    this.setTexture(texture, textureUnit);
+
                     if (sampler.slot !== textureUnit) {
                         gl.uniform1i(sampler.locationId, textureUnit);
                         sampler.slot = textureUnit;
@@ -524,11 +802,8 @@ pc.extend(pc.gfx, function () {
                     numTexures = samplerValue.length;
                     for (j = 0; j < numTexures; j++) {
                         texture = samplerValue[j];
-                        if (this.textureUnits[textureUnit] !== texture) {
-                            gl.activeTexture(gl.TEXTURE0 + textureUnit);
-                            texture.bind();
-                            this.textureUnits[textureUnit] = texture;
-                        }
+                        this.setTexture(texture, textureUnit);
+
                         sampler.array[j] = textureUnit;
                         textureUnit++;
                     }
@@ -549,6 +824,7 @@ pc.extend(pc.gfx, function () {
                     uniformVersion.revision = programVersion.revision;
 
                     // Call the function to commit the uniform value
+                    if (scopeId.value==null) console.log(scopeId.name+" is null");
                     this.commitFunction[uniform.dataType](uniform.locationId, scopeId.value);
                 }
             }
@@ -596,6 +872,8 @@ pc.extend(pc.gfx, function () {
 
             var flags = (options.flags === undefined) ? defaultOptions.flags : options.flags;
             if (flags !== 0) {
+                var gl = this.gl;
+
                 // Set the clear color
                 if (flags & pc.gfx.CLEARFLAG_COLOR) {
                     var color = (options.color === undefined) ? defaultOptions.color : options.color;
@@ -606,11 +884,25 @@ pc.extend(pc.gfx, function () {
                     // Set the clear depth
                     var depth = (options.depth === undefined) ? defaultOptions.depth : options.depth;
                     this.setClearDepth(depth);
+                    if (!this.depthWrite) {
+                        gl.depthMask(true);
+                    }
                 }
 
                 // Clear the frame buffer
-                this.gl.clear(this.glClearFlag[flags]);
+                gl.clear(this.glClearFlag[flags]);
+
+                if (flags & pc.gfx.CLEARFLAG_DEPTH) {
+                    if (!this.depthWrite) {
+                        gl.depthMask(false);
+                    }
+                }
             }
+        },
+
+        readPixels: function (x, y, w, h, pixels) {
+            var gl = this.gl;
+            gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
         },
 
         setClearDepth: function (depth) {
@@ -921,54 +1213,13 @@ pc.extend(pc.gfx, function () {
             this.boneLimit = maxBones;
         },
 
-        /**
-         * @function
-         * @name pc.gfx.Device#enableValidation
-         * @description Activates additional validation within the engine. Internally,
-         * the WebGL error code is checked after every call to a WebGL function. If an error
-         * is detected, it will be output to the Javascript console. Note that enabling
-         * validation will have negative performance implications for the PlayCanvas runtime.
-         * @param {Boolean} enable true to activate validation and false to deactivate it.
-         */
+        /* DEPRECATED */
         enableValidation: function (enable) {
-            if (enable === true) {
-                if (this.gl instanceof WebGLRenderingContext) {
-
-                    // Create a new WebGLValidator object to
-                    // usurp the real WebGL context
-                    this.gl = new WebGLValidator(this.gl);
-                }
-            } else {
-                if (this.gl instanceof WebGLValidator) {
-
-                    // Unwrap the real WebGL context
-                    this.gl = Context.gl;
-                }
-            }
+            console.warn('enableValidation: This function is deprecated and will be removed shortly.');
         },
 
-        /**
-         * @function
-         * @name pc.gfx.Device#validate
-         * @description Performs a one time validation on the error state of the underlying
-         * WebGL API. Note that pc.gfx.Device#enableValidation does not have to be activated
-         * for this function to operate. If an error is detected, it is output to the
-         * Javascript console and the function returns false. Otherwise, the function returns
-         * true. If an error is detected, it will have been triggered by a WebGL call between
-         * the previous and this call to pc.gfx.Device#validate. If this is the first call to
-         * pc.gfx.Device#validate, it detects errors since the device was created.
-         * @returns {Boolean} false if there was an error and true otherwise.
-         */
         validate: function () {
-            var gl = this.gl;
-            var error = gl.getError();
-
-            if (error !== gl.NO_ERROR) {
-                Log.error("WebGL error: " + WebGLValidator.ErrorString[error]);
-                return false;
-            }
-
-            return true;
+            console.warn('validate: This function is deprecated and will be removed shortly.');
         },
 
         /**
@@ -984,23 +1235,17 @@ pc.extend(pc.gfx, function () {
         }
     };
 
-    Object.defineProperty(Device.prototype, 'maxSupportedMaxAnisotropy', {
-        get: function() {
-            return this.maxTextureMaxAnisotropy;
-        }
-    });
-
     Object.defineProperty(Device.prototype, 'width', {
-        get: function() { return this.gl.drawingBufferWidth || this.canvas.width; }
+        get: function () { return this.gl.drawingBufferWidth || this.canvas.width; }
     });
 
     Object.defineProperty(Device.prototype, 'height', {
-        get: function() { return this.gl.drawingBufferHeight || this.canvas.height; }
+        get: function () { return this.gl.drawingBufferHeight || this.canvas.height; }
     });
 
     Object.defineProperty(Device.prototype, 'fullscreen', {
-        get: function() { return !!document.fullscreenElement; },
-        set: function(fullscreen) {
+        get: function () { return !!document.fullscreenElement; },
+        set: function (fullscreen) {
             if (fullscreen) {
                 var canvas = this.gl.canvas;
                 canvas.requestFullscreen();
@@ -1010,9 +1255,30 @@ pc.extend(pc.gfx, function () {
         }
     });
 
+    Object.defineProperty(Device.prototype, 'maxAnisotropy', {
+        get: ( function () {
+            var maxAniso;
+
+            return function () {
+                if (maxAniso === undefined) {
+                    maxAniso = 1;
+
+                    var gl = this.gl;
+                    var glExt = this.extTextureFilterAnisotropic;
+                    if (glExt) {
+                        maxAniso = gl.getParameter(glExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+                    }
+                }
+
+                return maxAniso;
+            }
+        } )()
+    });
+
     return {
         UnsupportedBrowserError: UnsupportedBrowserError,
         ContextCreationError: ContextCreationError,
-        Device: Device
+        Device: Device,
+        precalculatedTangents: true
     };
 }());

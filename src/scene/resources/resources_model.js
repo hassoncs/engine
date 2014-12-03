@@ -3,9 +3,11 @@ pc.extend(pc.resources, function () {
     var jsonToPrimitiveType = {
         "points":        pc.gfx.PRIMITIVE_POINTS,
         "lines":         pc.gfx.PRIMITIVE_LINES,
+        "lineloop":      pc.gfx.PRIMITIVE_LINELOOP,
         "linestrip":     pc.gfx.PRIMITIVE_LINESTRIP,
         "triangles":     pc.gfx.PRIMITIVE_TRIANGLES,
-        "trianglestrip": pc.gfx.PRIMITIVE_TRISTRIP
+        "trianglestrip": pc.gfx.PRIMITIVE_TRISTRIP,
+        "trianglefan":   pc.gfx.PRIMITIVE_TRIFAN
     };
 
     var jsonToVertexElementType = {
@@ -61,7 +63,7 @@ pc.extend(pc.resources, function () {
             var mapping = request.data;
             for (var i = 0; i < mapping.length; i++) {
                 if (mapping[i].material) {
-                    asset = this._assets.getAssetByResourceId(mapping[i].material);
+                    asset = this._assets.getAssetById(mapping[i].material);
                     if (asset) {
                         materials.push(asset);
                     }
@@ -288,7 +290,7 @@ pc.extend(pc.resources, function () {
         var numIndices = 0;
         for (i = 0; i < modelData.meshes.length; i++) {
             var meshData = modelData.meshes[i];
-            if (typeof meshData.indices !== 'undefined') {
+            if (meshData.indices !== undefined) {
                 numIndices += meshData.indices.length;
             }
         }
@@ -316,7 +318,7 @@ pc.extend(pc.resources, function () {
                 new pc.Vec3((max[0] - min[0]) * 0.5, (max[1] - min[1]) * 0.5, (max[2] - min[2]) * 0.5)
             );
 
-            var indexed = (typeof meshData.indices !== 'undefined');
+            var indexed = (meshData.indices !== undefined);
             var mesh = new pc.scene.Mesh();
             mesh.vertexBuffer = vertexBuffers[meshData.vertices];
             mesh.indexBuffer[0] = indexed ? indexBuffer : null;
@@ -324,7 +326,7 @@ pc.extend(pc.resources, function () {
             mesh.primitive[0].base = indexed ? (meshData.base + indexBase) : meshData.base;
             mesh.primitive[0].count = meshData.count;
             mesh.primitive[0].indexed = indexed;
-            mesh.skin = (typeof meshData.skin !== 'undefined') ? skins[meshData.skin] : null;
+            mesh.skin = (meshData.skin !== undefined) ? skins[meshData.skin] : null;
             mesh.aabb = aabb;
 
             if (indexed) {
@@ -373,11 +375,6 @@ pc.extend(pc.resources, function () {
         model.skinInstances = skinInstances;
         model.getGraph().syncHierarchy();
 
-        var meshInstances = model.meshInstances;
-        for (i = 0; i < meshInstances.length; i++) {
-            meshInstances[i].syncAabb();
-        }
-
         return model;
     };
 
@@ -388,8 +385,8 @@ pc.extend(pc.resources, function () {
         var material;
 
         if (mapping && mapping.length > meshInstanceIndex) {
-            if (mapping[meshInstanceIndex].material) { // resource id mapping
-                var asset = this._assets.getAssetByResourceId(mapping[meshInstanceIndex].material);
+            if (mapping[meshInstanceIndex].material) { // id mapping
+                var asset = this._assets.getAssetById(mapping[meshInstanceIndex].material);
                 if (!asset) {
                     console.error("Reference to material not in asset list. Try reloading.")
                     return null;

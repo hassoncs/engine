@@ -14,11 +14,13 @@ pc.extend(pc.resources, function () {
 
     var TextureResourceHandler = function (device) {
         this._device = device;
+        this.crossOrigin = undefined;
     };
     TextureResourceHandler = pc.inherits(TextureResourceHandler, pc.resources.ResourceHandler);
 
     TextureResourceHandler.prototype.load = function (request, options) {
         var identifier = request.canonical;
+        var self = this;
 
         var promise = new pc.promise.Promise(function (resolve, reject) {
             var ext = pc.path.getExtension(identifier).toLowerCase();
@@ -35,6 +37,10 @@ pc.extend(pc.resources, function () {
                 });
             } else if ((ext === '.jpg') || (ext === '.jpeg') || (ext === '.gif') || (ext === '.png')) {
                 var image = new Image();
+                if (self.crossOrigin !== undefined) {
+                    image.crossOrigin = self.crossOrigin;
+                }
+
                 // Call success callback after opening Texture
                 image.onload = function () {
                     resolve(image);
@@ -55,15 +61,18 @@ pc.extend(pc.resources, function () {
     TextureResourceHandler.prototype.open = function (data, request, options) {
         var texture;
 
-        if (data instanceof Image) { // PNG, JPG or GIF
+        // Every browser seems to pass data as an Image type. For some reason, the XDK
+        // passes an HTMLImageElement. TODO: figure out why!
+        if ((data instanceof Image) || (data instanceof HTMLImageElement)) { // PNG, JPG or GIF
             var img = data;
             if (request.result) {
                 texture = request.result;
             } else {
+                format = pc.string.endsWith(img.src.toLowerCase(), '.jpg') ? pc.gfx.PIXELFORMAT_R8_G8_B8 : pc.gfx.PIXELFORMAT_R8_G8_B8_A8;
                 texture = new pc.gfx.Texture(this._device, {
                     width: img.width,
                     height: img.height,
-                    format: pc.gfx.PIXELFORMAT_R8_G8_B8_A8
+                    format: format
                 });
             }
             texture.setSource(img);

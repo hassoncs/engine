@@ -27,8 +27,8 @@ pc.extend(pc.scene, function () {
         this.scene = null;
 
         this.clearOptions = {
-            color: [1.0, 1.0, 1.0, 1.0],
-            depth: 1.0,
+            color: [1, 1, 1, 1],
+            depth: 1,
             flags: pc.gfx.CLEARFLAG_COLOR | pc.gfx.CLEARFLAG_DEPTH
         };
         this.resize(width, height);
@@ -61,15 +61,27 @@ pc.extend(pc.scene, function () {
      * });
      */
     Picker.prototype.getSelection = function (rect) {
+        var device = this.device;
+
         rect.width = rect.width || 1;
         rect.height = rect.height || 1;
 
-        this._pickBufferTarget.bind();
+        // Cache active render target
+        var prevRenderTarget = device.getRenderTarget();
+
+        // Ready the device for rendering to the pick buffer
+        device.setRenderTarget(this._pickBufferTarget);
+        device.updateBegin();
 
         var pixels = new ArrayBuffer(4 * rect.width * rect.height);
         var pixelsBytes = new Uint8Array(pixels);
         var gl = this.device.gl;
         gl.readPixels(rect.x, rect.y, rect.width, rect.height, gl.RGBA, gl.UNSIGNED_BYTE, pixelsBytes);
+
+        device.updateEnd();
+
+        // Restore render target
+        device.setRenderTarget(prevRenderTarget);
 
         var selection = [];
 
@@ -99,8 +111,9 @@ pc.extend(pc.scene, function () {
      * @param {pc.scene.Scene} scene The scene containing the pickable mesh instances.
      */
     Picker.prototype.prepare = function (camera, scene) {
+        var device = this.device;
+
         this.scene = scene;
-        device = this.device;
 
         // Cache active render target
         var prevRenderTarget = device.getRenderTarget();
@@ -121,6 +134,8 @@ pc.extend(pc.scene, function () {
         var device = this.device;
         var scope = device.scope;
         var modelMatrixId = scope.resolve('matrix_model');
+        var boneTextureId = scope.resolve('texture_poseMap');
+        var boneTextureSizeId = scope.resolve('texture_poseMapSize');
         var poseMatrixId = scope.resolve('matrix_pose[0]');
         var pickColorId = scope.resolve('uColor');
         var projId = scope.resolve('matrix_projection');
@@ -141,10 +156,17 @@ pc.extend(pc.scene, function () {
                 mesh = meshInstance.mesh;
 
                 type = mesh.primitive[pc.scene.RENDERSTYLE_SOLID].type; 
-                if ((type === pc.gfx.PRIMITIVE_TRIANGLES) || (type === pc.gfx.PRIMITIVE_TRISTRIP)) {
+                if ((type === pc.gfx.PRIMITIVE_TRIANGLES) || (type === pc.gfx.PRIMITIVE_TRISTRIP) || (type === pc.gfx.PRIMITIVE_TRIFAN)) {
                     modelMatrixId.setValue(meshInstance.node.worldTransform.data);
                     if (meshInstance.skinInstance) {
-                        poseMatrixId.setValue(meshInstance.skinInstance.matrixPalette);
+                        if (device.supportsBoneTextures) {
+                            boneTextureId.setValue(meshInstance.skinInstance.boneTexture);
+                            var w = meshInstance.skinInstance.boneTexture.width;
+                            var h = meshInstance.skinInstance.boneTexture.height;
+                            boneTextureSizeId.setValue([w, h])
+                        } else {
+                            poseMatrixId.setValue(meshInstance.skinInstance.matrixPalette);                            
+                        }
                     }
 
                     this.pickColor[0] = ((i >> 16) & 0xff) / 255.0;
@@ -184,7 +206,8 @@ pc.extend(pc.scene, function () {
         var colorBuffer = new pc.gfx.Texture(this.device, {
             format: pc.gfx.PIXELFORMAT_R8_G8_B8_A8,
             width: width,
-            height: height
+            height: height,
+            autoMipmap: false
         });
         colorBuffer.minFilter = pc.gfx.FILTER_NEAREST;
         colorBuffer.magFilter = pc.gfx.FILTER_NEAREST;

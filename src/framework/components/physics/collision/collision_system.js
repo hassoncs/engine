@@ -140,7 +140,7 @@ pc.extend(pc.fw, function () {
 
     CollisionComponentSystem.prototype = pc.extend(CollisionComponentSystem.prototype, {
         onLibraryLoaded: function () {
-            if (typeof(Ammo) !== 'undefined') {
+            if (typeof Ammo !== 'undefined') {
                 //
             } else {
                 // Unbind the update function if we haven't loaded Ammo by now
@@ -175,7 +175,7 @@ pc.extend(pc.fw, function () {
         * in an internal implementations structure, before returning it.
         */
         _createImplementation: function (type) {
-            if (typeof this.implementations[type] === 'undefined') {
+            if (this.implementations[type] === undefined) {
                 var impl;
                 switch (type) {
                     case 'box':
@@ -243,7 +243,7 @@ pc.extend(pc.fw, function () {
         updateDebugShape: function (entity, data, impl) {
             var context = this.context;
 
-            if (typeof impl !== 'undefined') {
+            if (impl !== undefined) {
                 if (impl.hasDebugShape) {
                     if (data.model) {
                         if (!context.scene.containsModel(data.model)) {
@@ -358,7 +358,7 @@ pc.extend(pc.fw, function () {
             var entity = component.entity;
             var data = component.data;
 
-            if (typeof(Ammo) !== 'undefined') {
+            if (typeof Ammo !== 'undefined') {
                 data.shape = this.createPhysicalShape(component.entity, data);
                 if (entity.rigidbody) {
                     entity.rigidbody.createBody();
@@ -501,7 +501,7 @@ pc.extend(pc.fw, function () {
         },
 
         createPhysicalShape: function (entity, data) {
-            if (typeof(Ammo) !== 'undefined') {
+            if (typeof Ammo !== 'undefined') {
                 var he = data.halfExtents;
                 var ammoHe = new Ammo.btVector3(he.x, he.y, he.z);
                 return new Ammo.btBoxShape(ammoHe);
@@ -599,7 +599,7 @@ pc.extend(pc.fw, function () {
         },
 
         createPhysicalShape: function (entity, data) {
-            if (typeof(Ammo) !== 'undefined') {
+            if (typeof Ammo !== 'undefined') {
                 return new Ammo.btSphereShape(data.radius);
             } else {
                 return undefined;
@@ -663,7 +663,7 @@ pc.extend(pc.fw, function () {
         },
 
         updateCapsuleShape: function(data, vertexBuffer) {
-            var axis = (typeof data.axis !== 'undefined') ? data.axis : 1;
+            var axis = (data.axis !== undefined) ? data.axis : 1;
             var radius = data.radius || 0.5;
             var height = Math.max((data.height || 2) - 2 * radius, 0);
 
@@ -749,11 +749,11 @@ pc.extend(pc.fw, function () {
 
         createPhysicalShape: function (entity, data) {
             var shape = null;
-            var axis = (typeof data.axis !== 'undefined') ? data.axis : 1;
+            var axis = (data.axis !== undefined) ? data.axis : 1;
             var radius = data.radius || 0.5;
             var height = Math.max((data.height || 2) - 2 * radius, 0);
 
-            if (typeof(Ammo) !== 'undefined') {
+            if (typeof Ammo !== 'undefined') {
                 switch (axis) {
                     case 0:
                         shape = new Ammo.btCapsuleShapeX(radius, height);
@@ -829,9 +829,9 @@ pc.extend(pc.fw, function () {
         },
 
         updateCylinderShape: function(data, vertexBuffer) {
-            var axis = (typeof data.axis !== 'undefined') ? data.axis : 1;
-            var radius = (typeof data.radius !== 'undefined') ? data.radius : 0.5;
-            var height = (typeof data.height !== 'undefined') ? data.height : 1;
+            var axis = (data.axis !== undefined) ? data.axis : 1;
+            var radius = (data.radius !== undefined) ? data.radius : 0.5;
+            var height = (data.height !== undefined) ? data.height : 1;
 
             var positions = new Float32Array(vertexBuffer.lock());
 
@@ -888,11 +888,11 @@ pc.extend(pc.fw, function () {
         createPhysicalShape: function (entity, data) {
             var halfExtents = null;
             var shape = null;
-            var axis = (typeof data.axis !== 'undefined') ? data.axis : 1;
-            var radius = (typeof data.radius !== 'undefined') ? data.radius : 0.5;
-            var height = (typeof data.height !== 'undefined') ? data.height : 1;
+            var axis = (data.axis !== undefined) ? data.axis : 1;
+            var radius = (data.radius !== undefined) ? data.radius : 0.5;
+            var height = (data.height !== undefined) ? data.height : 1;
 
-            if (typeof(Ammo) !== 'undefined') {
+            if (typeof Ammo !== 'undefined') {
                 switch (axis) {
                     case 0:
                         halfExtents = new Ammo.btVector3(height * 0.5, radius, radius);
@@ -944,7 +944,7 @@ pc.extend(pc.fw, function () {
         beforeInitialize: function (component, data) {},
 
         createPhysicalShape: function (entity, data) {
-            if (typeof(Ammo) !== 'undefined' && data.model) {
+            if (typeof Ammo !== 'undefined' && data.model) {
                 var model = data.model;
                 var shape = new Ammo.btCompoundShape();
 
@@ -1021,7 +1021,7 @@ pc.extend(pc.fw, function () {
         recreatePhysicalShapes: function (component) {
             var data = component.data;
 
-            if (data.asset) {
+            if (data.asset !== null) {
                 this.loadModelAsset(component);
             } else {
                 data.model = null;
@@ -1030,7 +1030,7 @@ pc.extend(pc.fw, function () {
         },
 
         loadModelAsset: function (component) {
-            var guid = component.data.asset;
+            var id = component.data.asset;
             var entity = component.entity;
             var data = component.data;
 
@@ -1038,18 +1038,24 @@ pc.extend(pc.fw, function () {
                 parent: entity.getRequest()
             };
 
-            var asset = this.system.context.assets.getAssetByResourceId(guid);
+            var asset = this.system.context.assets.getAssetById(id);
             if (!asset) {
-                logERROR(pc.string.format('Trying to load model before asset {0} is loaded.', guid));
+                logERROR(pc.string.format('Trying to load model before asset {0} is loaded.', id));
                 return;
             }
 
-            this.system.context.assets.load(asset, [], options).then(function (resources) {
-                var model = resources[0];
-                data.model = model;
+            // check if asset is cached
+            if (asset.resource) {
+                data.model = asset.resource;
                 this.doRecreatePhysicalShape(component);
-
-            }.bind(this));
+            } else {
+                // load asset asynchronously
+                this.system.context.assets.load(asset, [], options).then(function (resources) {
+                    var model = resources[0];
+                    data.model = model;
+                    this.doRecreatePhysicalShape(component);
+                }.bind(this));
+            }
         },
 
         doRecreatePhysicalShape: function (component) {

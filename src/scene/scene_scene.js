@@ -7,6 +7,8 @@ pc.scene = {
     BLEND_ADDITIVE: 1,
     BLEND_NORMAL: 2,
     BLEND_NONE: 3,
+    BLEND_PREMULTIPLIED: 4,
+    BLEND_MULTIPLICATIVE: 5,
 
     RENDERSTYLE_SOLID: 0,
     RENDERSTYLE_WIREFRAME: 1,
@@ -40,7 +42,18 @@ pc.scene = {
      * @name pc.scene.FOG_EXP2
      * @description Fog rises according to an exponential curve controlled by a density value.
      */
-    FOG_EXP2: 'exp2'
+    FOG_EXP2: 'exp2',
+
+    TONEMAP_LINEAR: 0,
+    TONEMAP_FILMIC: 1,
+
+    SPECULAR_PHONG: 0,
+    SPECULAR_BLINN: 1,
+
+    FRESNEL_NONE: 0,
+    FRESNEL_SIMPLE: 1,
+    FRESNEL_SCHLICK: 2,
+    FRESNEL_COMPLEX: 3
 };
 
 pc.extend(pc.scene, function () {
@@ -55,11 +68,12 @@ pc.extend(pc.scene, function () {
      * @property {pc.Color} fogColor The color of the fog, in enabled.
      * @property {Number} fogDensity The density of the fog. This property is only valid if the fog property
      * is set to pc.scene.FOG_EXP or pc.scene.FOG_EXP2.
-     * @property {Number} fogEnd The distance from the viewpoint where linear fog reaches its maximum. This 
+     * @property {Number} fogEnd The distance from the viewpoint where linear fog reaches its maximum. This
      * property is only valid if the fog property is set to pc.scene.FOG_LINEAR.
      * @property {Number} fogStart The distance from the viewpoint where linear fog begins. This property is
      * only valid if the fog property is set to pc.scene.FOG_LINEAR.
      * @property {Number} shadowDistance The distance from the viewpoint beyond which shadows are no longer
+     * @property {Boolean} gammaCorrection If true then all materials will apply gamma correction
      * rendered.
      */
     var Scene = function Scene() {
@@ -75,6 +89,20 @@ pc.extend(pc.scene, function () {
         this.ambientLight = new pc.Color(0, 0, 0);
 
         this.shadowDistance = 40;
+        this._gammaCorrection = false;
+        this._toneMapping = 0;
+        this.exposure = 1.0;
+
+        this._prefilteredCubeMap128 = null;
+        this._prefilteredCubeMap64 = null;
+        this._prefilteredCubeMap32 = null;
+        this._prefilteredCubeMap16 = null;
+        this._prefilteredCubeMap8 = null;
+        this._prefilteredCubeMap4 = null;
+
+        this._skyboxCubeMap = null;
+        this._skyboxModel = null;
+
 
         // Models
         this._models = [];
@@ -99,11 +127,82 @@ pc.extend(pc.scene, function () {
         }
     });
 
+    Object.defineProperty(Scene.prototype, 'gammaCorrection', {
+        get: function () {
+            return this._gammaCorrection;
+        },
+        set: function (value) {
+            if (value !== this._gammaCorrection) {
+                this._gammaCorrection = value;
+                pc.gfx.shaderChunks.defaultGamma = value ? pc.gfx.shaderChunks.gamma2_2PS : pc.gfx.shaderChunks.gamma1_0PS;
+                this.updateShaders = true;
+            }
+        }
+    });
+
+    Object.defineProperty(Scene.prototype, 'toneMapping', {
+        get: function () {
+            return this._toneMapping;
+        },
+        set: function (value) {
+            if (value !== this._toneMapping) {
+                this._toneMapping = value;
+                pc.gfx.shaderChunks.defaultTonemapping = value ? pc.gfx.shaderChunks.tonemappingFilmicPS : pc.gfx.shaderChunks.tonemappingLinearPS;
+                this.updateShaders = true;
+            }
+        }
+    });
+
+    Object.defineProperty(Scene.prototype, 'skybox', {
+        get: function () {
+            return this._skyboxCubeMap;
+        },
+        set: function (value) {
+            if (value !== this._skyboxCubeMap) {
+                this._skyboxCubeMap = value;
+                if (this._skyboxModel) {
+                    if (this.containsModel(this._skyboxModel)) {
+                        this.removeModel(this._skyboxModel);
+                    }
+                }
+                this._skyboxModel = null;
+                this.updateShaders = true;
+            }
+        }
+    });
+
     // Shaders have to be updated if:
     // - the fog mode changes
     // - lights are added or removed
+    // - gamma correction changes
     Scene.prototype._updateShaders = function (device) {
         var i;
+
+        if (this._skyboxCubeMap && !this._skyboxModel) {
+            var material = new pc.scene.Material();
+            var scene = this;
+            material.updateShader = function() {
+                var library = device.getProgramLibrary();
+                var shader = library.getProgram('skybox', {hdr:scene._skyboxCubeMap.hdr, prefiltered:scene._skyboxCubeMap.hdr, gamma:scene.gammaCorrection, toneMapping:scene.toneMapping});
+                this.setShader(shader);
+            };
+
+            material.updateShader();
+            material.setParameter("texture_cubeMap", this._skyboxCubeMap);
+            material.cull = pc.gfx.CULLFACE_NONE;
+
+            var node = new pc.scene.GraphNode();
+            var mesh = pc.scene.procedural.createBox(device);
+            var meshInstance = new pc.scene.MeshInstance(node, mesh, material);
+
+            var model = new pc.scene.Model();
+            model.graph = node;
+            model.meshInstances = [ meshInstance ];
+            this._skyboxModel = model;
+
+            this.addModel(model);
+        }
+
         var materials = [];
         var drawCalls = this.drawCalls;
         for (i = 0; i < drawCalls.length; i++) {
