@@ -1,6 +1,5 @@
 ../src/core/core_core.js
 ../src/core/core_fullscreen.js
-../src/core/core_requestanimationframe.js
 ../src/core/core_color.js
 ../src/core/core_guid.js
 ../src/core/core_time.js
@@ -9,7 +8,6 @@
 ../src/core/core_inheritance.js
 ../src/core/core_bind.js
 ../src/core/core_path.js
-../src/core/core_content.js
 ../src/core/core_string.js
 ../src/core/core_json.js
 ../src/core/core_cookie.js
@@ -62,7 +60,6 @@
 ../src/graphics/programlib/programlib_depth.js
 ../src/graphics/programlib/programlib_depthrgba.js
 ../src/graphics/programlib/programlib_particle.js
-../src/graphics/programlib/programlib_particle2.js
 ../src/graphics/programlib/programlib_phong.js
 ../src/graphics/programlib/programlib_pick.js
 ../src/graphics/programlib/programlib_skybox.js
@@ -83,7 +80,6 @@
 ../src/scene/scene_skinpartition.js
 ../src/scene/scene_model.js
 ../src/scene/scene_particleemitter.js
-../src/scene/scene_particleemitter2.js
 ../src/scene/scene_pick.js
 ../src/scene/procedural/scene_procedural.js
 ../src/resources/resources_json.js
@@ -93,11 +89,10 @@
 ../src/resources/resources_cubemap.js
 ../src/scene/resources/resources_model.js
 ../src/scene/resources/resources_material.js
-../src/anim/anim_anim.js
 ../src/anim/anim_animation.js
 ../src/anim/anim_skeleton.js
 ../src/anim/resources/resources_animation.js
-../src/audio/audio_audio.js
+../src/audio/audio_audiomanager.js
 ../src/audio/audio_sound.js
 ../src/audio/audio_listener.js
 ../src/audio/audio_channel.js
@@ -139,12 +134,6 @@
 ../src/framework/components/camera/camera_system.js
 ../src/framework/components/camera/camera_component.js
 ../src/framework/components/camera/camera_data.js
-../src/framework/components/cubemap/cubemap_system.js
-../src/framework/components/cubemap/cubemap_component.js
-../src/framework/components/cubemap/cubemap_data.js
-../src/framework/components/staticcubemap/staticcubemap_system.js
-../src/framework/components/staticcubemap/staticcubemap_component.js
-../src/framework/components/staticcubemap/staticcubemap_data.js
 ../src/framework/components/light/light_system.js
 ../src/framework/components/light/light_component.js
 ../src/framework/components/light/light_data.js
@@ -165,15 +154,6 @@
 ../src/framework/components/audiolistener/audiolistener_data.js
 ../src/framework/components/designer/designer_component.js
 ../src/framework/components/designer/designer_data.js
-../src/framework/components/body2d/body2d_system.js
-../src/framework/components/body2d/body2d_component.js
-../src/framework/components/body2d/body2d_data.js
-../src/framework/components/body2d/collisionrect_system.js
-../src/framework/components/body2d/collisionrect_component.js
-../src/framework/components/body2d/collisionrect_data.js
-../src/framework/components/body2d/collisioncircle_system.js
-../src/framework/components/body2d/collisioncircle_component.js
-../src/framework/components/body2d/collisioncircle_data.js
 ../src/framework/components/physics/rigidbody_constants.js
 ../src/framework/components/physics/rigidbody_system.js
 ../src/framework/components/physics/rigidbody_component.js
@@ -202,3 +182,4 @@
 ../src/asset/asset_registry.js
 ../contrib/rsvp-3.0.6.min.js
 ../src/core/core_promise.js
+../src/backwards_compatibility.js

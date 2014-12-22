@@ -15,8 +15,14 @@ pc.extend(pc.fw, function() {
                 type: "boolean",
                 defaultValue: true
             }, {
+                name: "autoPlay",
+                displayName: "Auto Play",
+                description: "Play automatically on start",
+                type: "boolean",
+                defaultValue: true
+            }, {
                 name: "numParticles",
-                displayName: "Particle count",
+                displayName: "Particle Count",
                 description: "Total number of particles allocated",
                 type: "number",
                 defaultValue: 30,
@@ -76,11 +82,11 @@ pc.extend(pc.fw, function() {
                     step: 0.01
                 }
             }, {
-                name: "oneShot",
-                displayName: "One Shot",
-                description: "Disables looping",
+                name: "loop",
+                displayName: "Loop",
+                description: "Enables looping",
                 type: "boolean",
-                defaultValue: false,
+                defaultValue: true,
             }, {
                 name: "preWarm",
                 displayName: "Pre Warm",
@@ -88,7 +94,7 @@ pc.extend(pc.fw, function() {
                 type: "boolean",
                 defaultValue: false,
                 filter: {
-                    oneShot: false
+                    loop: true
                 }
             }, {
                 name: "lighting",
@@ -107,7 +113,7 @@ pc.extend(pc.fw, function() {
                 }
             }, {
                 name: "intensity",
-                displayName: "Color intensity",
+                displayName: "Color Intensity",
                 description: "Controls the intensity of the colors for each particle",
                 type: "number",
                 defaultValue: 1,
@@ -117,9 +123,9 @@ pc.extend(pc.fw, function() {
                     step: 0.1
                 }
             }, {
-                name: "depthTest",
-                displayName: "Depth Test",
-                description: "Enables hardware depth testing; don't use it for semi-transparent particles",
+                name: "depthWrite",
+                displayName: "Depth Write",
+                description: "Enables writing to depth buffer, therefore giving accurate occlusion between particles. Do not use it for semi-transparent particles",
                 type: "boolean",
                 defaultValue: false,
             }, {
@@ -141,16 +147,16 @@ pc.extend(pc.fw, function() {
                 options: {
                     enumerations: [{
                         name: 'None',
-                        value: pc.scene.PARTICLES_SORT_NONE
+                        value: pc.PARTICLESORT_NONE
                     }, {
                         name: 'Camera Distance',
-                        value: pc.scene.PARTICLES_SORT_DISTANCE
+                        value: pc.PARTICLESORT_DISTANCE
                     }, {
                         name: 'Newer First',
-                        value: pc.scene.PARTICLES_SORT_NEWER_FIRST
+                        value: pc.PARTICLESORT_NEWER_FIRST
                     }, {
                         name: 'Older First',
-                        value: pc.scene.PARTICLES_SORT_OLDER_FIRST
+                        value: pc.PARTICLESORT_OLDER_FIRST
                     }]
                 },
                 defaultValue: 0,
@@ -162,16 +168,16 @@ pc.extend(pc.fw, function() {
                 options: {
                     enumerations: [{
                         name: 'Alpha',
-                        value: pc.scene.BLEND_NORMAL
+                        value: pc.BLEND_NORMAL
                     }, {
                         name: 'Add',
-                        value: pc.scene.BLEND_ADDITIVE
+                        value: pc.BLEND_ADDITIVE
                     }, {
                         name: 'Multiply',
-                        value: pc.scene.BLEND_MULTIPLICATIVE
+                        value: pc.BLEND_MULTIPLICATIVE
                     }]
                 },
-                defaultValue: pc.scene.BLEND_NORMAL,
+                defaultValue: pc.BLEND_NORMAL,
             }, {
                 name: "stretch",
                 displayName: "Stretch",
@@ -180,9 +186,14 @@ pc.extend(pc.fw, function() {
                 defaultValue: 0,
                 options: {
                     min: 0,
-                    max: 32,
-                    step: 0.25
+                    step: 0.01
                 }
+            }, {
+                name: "alignToMotion",
+                displayName: "Align To Motion",
+                description: "Rotates particles along the direction of motion",
+                type: 'boolean',
+                defaultValue: false
             }, {
                 name: "spawnBounds",
                 displayName: "Spawn Bounds",
@@ -216,7 +227,7 @@ pc.extend(pc.fw, function() {
                 defaultValue: null
             }, {
                 name: "normalMapAsset",
-                displayName: "Normal map",
+                displayName: "Normal Map",
                 description: "Normal map used for each particle",
                 type: "asset",
                 options: {
@@ -226,7 +237,7 @@ pc.extend(pc.fw, function() {
                 defaultValue: null
             }, {
                 name: "mesh",
-                displayName: "Particle mesh",
+                displayName: "Particle Mesh",
                 description: "Mesh to use as particle; Will be quad, if not set",
                 type: "asset",
                 options: {
@@ -303,6 +314,9 @@ pc.extend(pc.fw, function() {
                     curveNames: ['Angle'],
                     secondCurve: 'rotationSpeedGraph2',
                     verticalAxisValue: 360,
+                },
+                filter: {
+                    alignToMotion: false
                 }
             }, {
                 name: 'rotationSpeedGraph2',
@@ -417,9 +431,6 @@ pc.extend(pc.fw, function() {
                     always: false
                 }
             }, {
-                name: 'camera',
-                exposed: false
-            }, {
                 name: 'colorMap',
                 exposed: false
             }, {
@@ -438,6 +449,15 @@ pc.extend(pc.fw, function() {
 
         this.on('remove', this.onRemove, this);
         pc.fw.ComponentSystem.on('update', this.onUpdate, this);
+        pc.fw.ComponentSystem.on('toolsUpdate', this.onToolsUpdate, this);
+
+        var gd = context.graphicsDevice;
+        this.debugMesh = this._createDebugMesh();
+
+        this.debugMaterial = new pc.BasicMaterial();
+        this.debugMaterial.color = new pc.Color(1, 0.5, 0, 1);
+        this.debugMaterial.update();
+
     };
     ParticleSystemComponentSystem = pc.inherits(ParticleSystemComponentSystem, pc.fw.ComponentSystem);
 
@@ -474,6 +494,10 @@ pc.extend(pc.fw, function() {
             }
 
             ParticleSystemComponentSystem._super.initializeComponentData.call(this, component, data, properties);
+
+            if (this._inTools) {
+                this._createDebugShape(component);
+            }
         },
 
         cloneComponent: function (entity, clone) {
@@ -492,9 +516,12 @@ pc.extend(pc.fw, function() {
                     sourceProp = sourceProp.clone();
                     data[prop.name] = sourceProp;
                 } else {
-                    if (sourceProp) data[prop.name] = sourceProp;
+                    if (sourceProp !== null && sourceProp !== undefined) {
+                        data[prop.name] = sourceProp;
+                    }
                 }
             }
+
             return this.addComponent(clone, data);
         },
 
@@ -505,28 +532,29 @@ pc.extend(pc.fw, function() {
             for (var id in components) {
                 if (components.hasOwnProperty(id)) {
                     var c = components[id];
+                    var entity = c.entity;
                     var data = c.data;
 
-                    if (data.enabled && c.entity.enabled) {
+                    if (data.enabled && entity.enabled) {
                         var emitter = data.model.emitter;
-                        // check if the emitter has no camera set or if the
-                        // camera is disabled
-                        var cameraEntity = data.camera;
-                        var camera = cameraEntity ? cameraEntity.camera : null;
-                        if (!cameraEntity || !camera || !camera.enabled) {
 
-                            // if there is no valid camera then get the first enabled camera
-                            if (!currentCamera) {
-                                currentCamera = this.context.systems.camera.cameras[0];
-                                if (currentCamera) {
-                                    currentCamera = currentCamera.entity;
-                                }
-                            }
-
-                            c.entity.particlesystem.camera = currentCamera;
+                        if (!data.paused) {
+                            emitter.addTime(dt);
                         }
+                    }
+                }
+            }
+        },
 
-                        emitter.addTime(dt);
+        onToolsUpdate: function (dt) {
+            var components = this.store;
+
+            for (var id in components) {
+                if (components.hasOwnProperty(id)) {
+                    var c = components[id];
+
+                    if (c.data.enabled && c.entity.enabled) {
+                        this._updateDebugShape(c);
                     }
                 }
             }
@@ -538,6 +566,76 @@ pc.extend(pc.fw, function() {
                 entity.removeChild(data.model.getGraph());
                 data.model = null;
             }
+        },
+
+        _createDebugMesh: function () {
+            var gd = this.context.graphicsDevice;
+
+            var format = new pc.VertexFormat(gd, [
+                { semantic: pc.SEMANTIC_POSITION, components: 3, type: pc.ELEMENTTYPE_FLOAT32 }
+            ]);
+
+            var vertexBuffer = new pc.VertexBuffer(gd, format, 8);
+            var positions = new Float32Array(vertexBuffer.lock());
+            positions.set([
+                -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5,
+                -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5
+            ]);
+            vertexBuffer.unlock();
+
+            var indexBuffer = new pc.IndexBuffer(gd, pc.INDEXFORMAT_UINT8, 24);
+            var indices = new Uint8Array(indexBuffer.lock());
+            indices.set([
+                0,1,1,2,2,3,3,0,
+                4,5,5,6,6,7,7,4,
+                0,4,1,5,2,6,3,7
+            ]);
+            indexBuffer.unlock();
+
+            var mesh = new pc.Mesh();
+            mesh.vertexBuffer = vertexBuffer;
+            mesh.indexBuffer[0] = indexBuffer;
+            mesh.primitive[0].type = pc.PRIMITIVE_LINES;
+            mesh.primitive[0].base = 0;
+            mesh.primitive[0].count = indexBuffer.getNumIndices();
+            mesh.primitive[0].indexed = true;
+            return mesh;
+        },
+
+        _createDebugShape: function (component) {
+            var node = new pc.GraphNode();
+
+            var model = new pc.Model();
+            model.graph = node;
+
+            model.meshInstances = [ new pc.MeshInstance(node, this.debugMesh, this.debugMaterial) ];
+
+            component.data.debugShape = model;
+
+            if (component.data.enabled && component.entity.enabled) {
+                this.context.root.addChild(node);
+                this.context.scene.addModel(model);
+            }
+
+            return model;
+        },
+
+        _updateDebugShape: function (component) {
+            var he = component.data.spawnBounds;
+            var x = he.x;
+            var y = he.y;
+            var z = he.z;
+
+            var entity = component.entity;
+            var root = component.data.debugShape.graph;
+            root.setPosition(entity.getPosition());
+            root.setRotation(entity.getRotation());
+
+            x = x || 0.0005;
+            y = y || 0.0005;
+            z = z || 0.0005;
+
+            root.setLocalScale(x * 2, y * 2, z * 2);
         }
     });
 

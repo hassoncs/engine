@@ -5,8 +5,8 @@ pc.extend(pc.fw, function() {
      * @constructor Create a new ApplicationContext
      * @name pc.fw.ApplicationContext
      * @param {pc.resources.ResourceLoader} loaders LoaderManager which is used to load resources
-     * @param {pc.scene.Scene} scene Used to manage models to render
-     * @param {pc.gfx.Device} graphicsDevice Global graphics device
+     * @param {pc.Scene} scene Used to manage models to render
+     * @param {pc.GraphicsDevice} graphicsDevice Global graphics device
      * @param {Object} registry ComponentSystemRegistry stores all the ComponentSystems and is used to access Component data
      * @param {Object} [options] Optional extras such as input handlers      
      * @param {Object} [options.controller] Generic controller for getting user input
@@ -57,34 +57,34 @@ pc.extend(pc.fw, function() {
         /**
          * @name pc.fw.ApplicationContext#controller
          * @description General input handler
-         * @type pc.input.Controller
+         * @type pc.Controller
          */
         this.controller = options.controller;
         /**
          * @name pc.fw.ApplicationContext#keyboard
          * @description Input handler for the keyboard if available
-         * @type pc.input.Keyboard
+         * @type pc.Keyboard
          */
         this.keyboard = options.keyboard;
         
         /**
          * @name pc.fw.ApplicationContext#mouse
          * @description Input handler for the mouse if available
-         * @type pc.input.Mouse
+         * @type pc.Mouse
          */
         this.mouse = options.mouse;
 
         /**
          * @name pc.fw.ApplicationContext#touch
          * @description Input handler for touch events if available
-         * @type pc.input.TouchDevice
+         * @type pc.TouchDevice
          */
         this.touch = options.touch;
 
         /**
         * @name pc.fw.ApplicationContext#gamepads
         * @description Input handler for gamepads if available
-        * @type pc.input.GamePads
+        * @type pc.GamePads
         */
         this.gamepads = options.gamepads;
     };

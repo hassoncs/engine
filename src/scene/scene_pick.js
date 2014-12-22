@@ -1,15 +1,15 @@
-pc.extend(pc.scene, function () {
+pc.extend(pc, function () {
 
     /**
-     * @name pc.scene.Picker
+     * @name pc.Picker
      * @class Picker object used to select mesh instances from screen coordinates.
      * @constructor Create a new instance of a Picker object
-     * @param {pc.gfx.Device} device Graphics device used to manage internal graphics resources.
+     * @param {pc.GraphicsDevice} device Graphics device used to manage internal graphics resources.
      * @param {Number} width The width of the pick buffer in pixels.
      * @param {Number} height The height of the pick buffer in pixels.
      * @property {Number} width Width of the pick buffer in pixels (read-only).
      * @property {Number} height Height of the pick buffer in pixels (read-only).
-     * @property {pc.gfx.RenderTarget} renderTarget The render target used by the picker internally (read-only).
+     * @property {pc.RenderTarget} renderTarget The render target used by the picker internally (read-only).
      */
     var Picker = function(device, width, height) {
         this.device = device;
@@ -29,14 +29,14 @@ pc.extend(pc.scene, function () {
         this.clearOptions = {
             color: [1, 1, 1, 1],
             depth: 1,
-            flags: pc.gfx.CLEARFLAG_COLOR | pc.gfx.CLEARFLAG_DEPTH
+            flags: pc.CLEARFLAG_COLOR | pc.CLEARFLAG_DEPTH
         };
         this.resize(width, height);
     };
 
     /**
      * @function
-     * @name pc.scene.Picker#getSelection
+     * @name pc.Picker#getSelection
      * @description Return the list of mesh instances selected by the specified rectangle in the
      * previously prepared pick buffer.
      * @param {Object} rect The selection rectangle.
@@ -73,10 +73,8 @@ pc.extend(pc.scene, function () {
         device.setRenderTarget(this._pickBufferTarget);
         device.updateBegin();
 
-        var pixels = new ArrayBuffer(4 * rect.width * rect.height);
-        var pixelsBytes = new Uint8Array(pixels);
-        var gl = this.device.gl;
-        gl.readPixels(rect.x, rect.y, rect.width, rect.height, gl.RGBA, gl.UNSIGNED_BYTE, pixelsBytes);
+        var pixels = new Uint8Array(4 * rect.width * rect.height);
+        device.readPixels(rect.x, rect.y, rect.width, rect.height, pixels);
 
         device.updateEnd();
 
@@ -86,8 +84,10 @@ pc.extend(pc.scene, function () {
         var selection = [];
 
         for (var i = 0; i < rect.width * rect.height; i++) {
-            var pixel = new Uint8Array(pixels, i * 4, 4);
-            var index = pixel[0] << 16 | pixel[1] << 8 | pixel[2];
+            var r = pixels[4 * i + 0];
+            var g = pixels[4 * i + 1];
+            var b = pixels[4 * i + 2];
+            var index = r << 16 | g << 8 | b;
             // White is 'no selection'
             if (index !== 0xffffff) {
                 var selectedMeshInstance = this.scene.drawCalls[index];
@@ -102,13 +102,13 @@ pc.extend(pc.scene, function () {
 
     /**
      * @function
-     * @name pc.scene.Picker#prepare
+     * @name pc.Picker#prepare
      * @description Primes the pick buffer with a rendering of the specified models from the point of view
-     * of the supplied camera. Once the pick buffer has been prepared, pc.scene.Picker#getSelection can be
+     * of the supplied camera. Once the pick buffer has been prepared, pc.Picker#getSelection can be
      * called multiple times on the same picker object. Therefore, if the models or camera do not change 
-     * in any way, pc.scene.Picker#prepare does not need to be called again.
-     * @param {pc.scene.CameraNode} camera The camera used to render the scene, note this is the CameraNode, not an Entity
-     * @param {pc.scene.Scene} scene The scene containing the pickable mesh instances.
+     * in any way, pc.Picker#prepare does not need to be called again.
+     * @param {pc.CameraNode} camera The camera used to render the scene, note this is the CameraNode, not an Entity
+     * @param {pc.Scene} scene The scene containing the pickable mesh instances.
      */
     Picker.prototype.prepare = function (camera, scene) {
         var device = this.device;
@@ -127,7 +127,7 @@ pc.extend(pc.scene, function () {
 
         // Build mesh instance list (ideally done by visibility query)
         var i;
-        var mesh, meshInstance;
+        var mesh, meshInstance, material;
         var type;
         var drawCalls = scene.drawCalls;
         var numDrawCalls = drawCalls.length;
@@ -154,9 +154,18 @@ pc.extend(pc.scene, function () {
             if (!drawCalls[i].command) {
                 meshInstance = drawCalls[i];
                 mesh = meshInstance.mesh;
+                material = meshInstance.material;
 
-                type = mesh.primitive[pc.scene.RENDERSTYLE_SOLID].type; 
-                if ((type === pc.gfx.PRIMITIVE_TRIANGLES) || (type === pc.gfx.PRIMITIVE_TRISTRIP) || (type === pc.gfx.PRIMITIVE_TRIFAN)) {
+                type = mesh.primitive[pc.RENDERSTYLE_SOLID].type;
+                var isSolid = (type === pc.PRIMITIVE_TRIANGLES) || (type === pc.PRIMITIVE_TRISTRIP) || (type === pc.PRIMITIVE_TRIFAN);
+                var isPickable = (material instanceof pc.PhongMaterial) || (material instanceof pc.BasicMaterial);
+                if (isSolid && isPickable) {
+
+                    device.setBlending(false);
+                    device.setCullMode(material.cull);
+                    device.setDepthWrite(material.depthWrite);
+                    device.setDepthTest(material.depthTest);
+
                     modelMatrixId.setValue(meshInstance.node.worldTransform.data);
                     if (meshInstance.skinInstance) {
                         if (device.supportsBoneTextures) {
@@ -169,16 +178,16 @@ pc.extend(pc.scene, function () {
                         }
                     }
 
-                    this.pickColor[0] = ((i >> 16) & 0xff) / 255.0;
-                    this.pickColor[1] = ((i >> 8) & 0xff) / 255.0;
-                    this.pickColor[2] = (i & 0xff) / 255.0;
-                    this.pickColor[3] = 1.0;
+                    this.pickColor[0] = ((i >> 16) & 0xff) / 255;
+                    this.pickColor[1] = ((i >> 8) & 0xff) / 255;
+                    this.pickColor[2] = (i & 0xff) / 255;
+                    this.pickColor[3] = 1;
                     pickColorId.setValue(this.pickColor);
                     device.setShader(mesh.skin ? this.pickProgSkin : this.pickProgStatic);
 
                     device.setVertexBuffer(mesh.vertexBuffer, 0);
-                    device.setIndexBuffer(mesh.indexBuffer[pc.scene.RENDERSTYLE_SOLID]);
-                    device.draw(mesh.primitive[pc.scene.RENDERSTYLE_SOLID]);
+                    device.setIndexBuffer(mesh.indexBuffer[pc.RENDERSTYLE_SOLID]);
+                    device.draw(mesh.primitive[pc.RENDERSTYLE_SOLID]);
                 }
             }
         }
@@ -193,27 +202,27 @@ pc.extend(pc.scene, function () {
 
     /**
      * @function
-     * @name pc.scene.Picker#resize
+     * @name pc.Picker#resize
      * @description Sets the resolution of the pick buffer. The pick buffer resolution does not need
      * to match the resolution of the corresponding frame buffer use for general rendering of the 
      * 3D scene. However, the lower the resolution of the pick buffer, the less accurate the selection
-     * results returned by pc.scene.Picker#getSelection. On the other hand, smaller pick buffers will
+     * results returned by pc.Picker#getSelection. On the other hand, smaller pick buffers will
      * yield greater performance, so there is a trade off.
      * @param {Number} width The width of the pick buffer in pixels.
      * @param {Number} height The height of the pick buffer in pixels.
      */
     Picker.prototype.resize = function (width, height) {
-        var colorBuffer = new pc.gfx.Texture(this.device, {
-            format: pc.gfx.PIXELFORMAT_R8_G8_B8_A8,
+        var colorBuffer = new pc.Texture(this.device, {
+            format: pc.PIXELFORMAT_R8_G8_B8_A8,
             width: width,
             height: height,
             autoMipmap: false
         });
-        colorBuffer.minFilter = pc.gfx.FILTER_NEAREST;
-        colorBuffer.magFilter = pc.gfx.FILTER_NEAREST;
-        colorBuffer.addressU = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
-        colorBuffer.addressV = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
-        this._pickBufferTarget = new pc.gfx.RenderTarget(this.device, colorBuffer, { depth: true });
+        colorBuffer.minFilter = pc.FILTER_NEAREST;
+        colorBuffer.magFilter = pc.FILTER_NEAREST;
+        colorBuffer.addressU = pc.ADDRESS_CLAMP_TO_EDGE;
+        colorBuffer.addressV = pc.ADDRESS_CLAMP_TO_EDGE;
+        this._pickBufferTarget = new pc.RenderTarget(this.device, colorBuffer, { depth: true });
     };
 
     Object.defineProperty(Picker.prototype, 'renderTarget', {

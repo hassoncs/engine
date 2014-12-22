@@ -1,6 +1,6 @@
-pc.extend(pc.posteffect, function () {
+pc.extend(pc, function () {
     /**
-     * @name pc.posteffect.PostEffectQueue
+     * @name pc.PostEffectQueue
      * @constructor Create a new PostEffectQueue
      * @class Used to manage multiple post effects for a camera
      * @param {pc.fw.ApplicationContext} context The application context
@@ -28,10 +28,10 @@ pc.extend(pc.posteffect, function () {
          /**
          * @private
          * @function
-         * @name pc.posteffect.PostEffectQueue#_createOffscreenTarget
+         * @name pc.PostEffectQueue#_createOffscreenTarget
          * @description Creates a render target with the dimensions of the canvas, with an optional depth buffer
          * @param {Boolean} useDepth Set to true if you want to create a render target with a depth buffer
-         * @returns {pc.gfx.RenderTarget} The render target
+         * @returns {pc.RenderTarget} The render target
          */
         _createOffscreenTarget: function (useDepth) {
             var rect = this.camera.rect;
@@ -39,18 +39,18 @@ pc.extend(pc.posteffect, function () {
             var width = Math.floor(rect.z * this.context.graphicsDevice.width * this.renderTargetScale);
             var height = Math.floor(rect.w * this.context.graphicsDevice.height * this.renderTargetScale);
 
-            var colorBuffer = new pc.gfx.Texture(this.context.graphicsDevice, {
-                format: pc.gfx.PIXELFORMAT_R8_G8_B8_A8,
+            var colorBuffer = new pc.Texture(this.context.graphicsDevice, {
+                format: pc.PIXELFORMAT_R8_G8_B8_A8,
                 width: width,
                 height: height
             });
 
-            colorBuffer.minFilter = pc.gfx.FILTER_NEAREST;
-            colorBuffer.magFilter = pc.gfx.FILTER_NEAREST;
-            colorBuffer.addressU = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
-            colorBuffer.addressV = pc.gfx.ADDRESS_CLAMP_TO_EDGE;
+            colorBuffer.minFilter = pc.FILTER_NEAREST;
+            colorBuffer.magFilter = pc.FILTER_NEAREST;
+            colorBuffer.addressU = pc.ADDRESS_CLAMP_TO_EDGE;
+            colorBuffer.addressV = pc.ADDRESS_CLAMP_TO_EDGE;
 
-            return new pc.gfx.RenderTarget(this.context.graphicsDevice, colorBuffer, { depth: useDepth });
+            return new pc.RenderTarget(this.context.graphicsDevice, colorBuffer, { depth: useDepth });
         },
 
         _setDepthTarget: function (depthTarget) {
@@ -76,10 +76,10 @@ pc.extend(pc.posteffect, function () {
 
         /**
          * @function
-         * @name pc.posteffect.PostEffectQueue#addEffect
+         * @name pc.PostEffectQueue#addEffect
          * @description Adds a post effect to the queue. If the queue is disabled adding a post effect will
          * automatically enable the queue.
-         * @param {pc.posteffect.PostEffect} effect The post effect to add to the queue.
+         * @param {pc.PostEffect} effect The post effect to add to the queue.
          */
         addEffect: function (effect) {
             // first rendering of the scene requires depth buffer
@@ -117,9 +117,9 @@ pc.extend(pc.posteffect, function () {
 
         /**
          * @function
-         * @name pc.posteffect.PostEffectQueue#removeEffect
+         * @name pc.PostEffectQueue#removeEffect
          * @description Removes a post effect from the queue. If the queue becomes empty it will be disabled automatically.
-         * @param {pc.posteffect.PostEffect} effect The post effect to remove.
+         * @param {pc.PostEffect} effect The post effect to remove.
          */
         removeEffect: function (effect) {
             // find index of effect
@@ -179,7 +179,7 @@ pc.extend(pc.posteffect, function () {
 
         /**
          * @function
-         * @name pc.posteffect.PostEffectQueue#destroy
+         * @name pc.PostEffectQueue#destroy
          * @description Removes all the effects from the queue and disables it
          */
         destroy: function () {
@@ -201,7 +201,7 @@ pc.extend(pc.posteffect, function () {
 
         /**
          * @function
-         * @name pc.posteffect.PostEffectQueue#enable
+         * @name pc.PostEffectQueue#enable
          * @description Enables the queue and all of its effects. If there are no effects then the queue will not be enabled.
          */
         enable: function () {
@@ -220,7 +220,7 @@ pc.extend(pc.posteffect, function () {
                 camera.camera.setRect(0, 0, 1, 1);
 
                 // create a new command that renders all of the effects one after the other
-                this.command = new pc.scene.Command(pc.scene.LAYER_FX, pc.scene.BLEND_NONE, function () {
+                this.command = new pc.Command(pc.LAYER_FX, pc.BLEND_NONE, function () {
                     if (this.enabled && camera.data.isRendering) {
                         var rect = null;
                         var len = effects.length;
@@ -246,7 +246,7 @@ pc.extend(pc.posteffect, function () {
 
         /**
          * @function
-         * @name pc.posteffect.PostEffectQueue#disable
+         * @name pc.PostEffectQueue#disable
          * @description Disables the queue and all of its effects.
          */
         disable: function () {

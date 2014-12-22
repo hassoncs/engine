@@ -158,39 +158,39 @@ pc.extend(pc.fw, function () {
                 data.enabled = data.activate;
             }
 
-            data.camera = new pc.scene.CameraNode();
+            data.camera = new pc.CameraNode();
 
-            data.postEffects = new pc.posteffect.PostEffectQueue(this.context, component);
+            data.postEffects = new pc.PostEffectQueue(this.context, component);
 
             if (this.context.designer && this.displayInTools(component.entity)) {
-                var material = new pc.scene.BasicMaterial();
+                var material = new pc.BasicMaterial();
                 material.color = new pc.Color(1, 1, 0, 1);
                 material.update();
 
-                var indexBuffer = new pc.gfx.IndexBuffer(this.context.graphicsDevice, pc.gfx.INDEXFORMAT_UINT8, 24);
+                var indexBuffer = new pc.IndexBuffer(this.context.graphicsDevice, pc.INDEXFORMAT_UINT8, 24);
                 var indices = new Uint8Array(indexBuffer.lock());
                 indices.set([0,1,1,2,2,3,3,0, // Near plane
                              4,5,5,6,6,7,7,4, // Far plane
                              0,4,1,5,2,6,3,7]); // Near to far edges
                 indexBuffer.unlock();
 
-                var format = new pc.gfx.VertexFormat(this.context.graphicsDevice, [
-                    { semantic: pc.gfx.SEMANTIC_POSITION, components: 3, type: pc.gfx.ELEMENTTYPE_FLOAT32 }
+                var format = new pc.VertexFormat(this.context.graphicsDevice, [
+                    { semantic: pc.SEMANTIC_POSITION, components: 3, type: pc.ELEMENTTYPE_FLOAT32 }
                 ]);
 
-                var vertexBuffer = new pc.gfx.VertexBuffer(this.context.graphicsDevice, format, 8, pc.gfx.BUFFER_DYNAMIC);
+                var vertexBuffer = new pc.VertexBuffer(this.context.graphicsDevice, format, 8, pc.BUFFER_DYNAMIC);
 
-                var mesh = new pc.scene.Mesh();
+                var mesh = new pc.Mesh();
                 mesh.vertexBuffer = vertexBuffer;
                 mesh.indexBuffer[0] = indexBuffer;
-                mesh.primitive[0].type = pc.gfx.PRIMITIVE_LINES;
+                mesh.primitive[0].type = pc.PRIMITIVE_LINES;
                 mesh.primitive[0].base = 0;
                 mesh.primitive[0].count = indexBuffer.getNumIndices();
                 mesh.primitive[0].indexed = true;
 
-                var model = new pc.scene.Model();
+                var model = new pc.Model();
                 model.graph = data.camera;
-                model.meshInstances = [ new pc.scene.MeshInstance(model.graph, mesh, material) ];
+                model.meshInstances = [ new pc.MeshInstance(model.graph, mesh, material) ];
 
                 this.context.scene.addModel(model);
 
@@ -257,7 +257,7 @@ pc.extend(pc.fw, function () {
                 var projection  = component.projection;
 
                 var x, y;
-                if (projection === pc.scene.Projection.PERSPECTIVE) {
+                if (projection === pc.PROJECTION_PERSPECTIVE) {
                     y = Math.tan(fov / 2.0) * nearClip;
                 } else {
                     y = component.camera.getOrthoHeight();
@@ -278,7 +278,7 @@ pc.extend(pc.fw, function () {
                 positions[10] = -y;
                 positions[11] = -nearClip;
 
-                if (projection === pc.scene.Projection.PERSPECTIVE) {
+                if (projection === pc.PROJECTION_PERSPECTIVE) {
                     y = Math.tan(fov / 2.0) * farClip;
                     x = y * aspectRatio;
                 }

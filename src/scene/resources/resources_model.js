@@ -1,41 +1,41 @@
 pc.extend(pc.resources, function () {
 
     var jsonToPrimitiveType = {
-        "points":        pc.gfx.PRIMITIVE_POINTS,
-        "lines":         pc.gfx.PRIMITIVE_LINES,
-        "lineloop":      pc.gfx.PRIMITIVE_LINELOOP,
-        "linestrip":     pc.gfx.PRIMITIVE_LINESTRIP,
-        "triangles":     pc.gfx.PRIMITIVE_TRIANGLES,
-        "trianglestrip": pc.gfx.PRIMITIVE_TRISTRIP,
-        "trianglefan":   pc.gfx.PRIMITIVE_TRIFAN
+        "points":        pc.PRIMITIVE_POINTS,
+        "lines":         pc.PRIMITIVE_LINES,
+        "lineloop":      pc.PRIMITIVE_LINELOOP,
+        "linestrip":     pc.PRIMITIVE_LINESTRIP,
+        "triangles":     pc.PRIMITIVE_TRIANGLES,
+        "trianglestrip": pc.PRIMITIVE_TRISTRIP,
+        "trianglefan":   pc.PRIMITIVE_TRIFAN
     };
 
     var jsonToVertexElementType = {
-        "int8":    pc.gfx.ELEMENTTYPE_INT8,
-        "uint8":   pc.gfx.ELEMENTTYPE_UINT8,
-        "int16":   pc.gfx.ELEMENTTYPE_INT16,
-        "uint16":  pc.gfx.ELEMENTTYPE_UINT16,
-        "int32":   pc.gfx.ELEMENTTYPE_INT32,
-        "uint32":  pc.gfx.ELEMENTTYPE_UINT32,
-        "float32": pc.gfx.ELEMENTTYPE_FLOAT32
+        "int8":    pc.ELEMENTTYPE_INT8,
+        "uint8":   pc.ELEMENTTYPE_UINT8,
+        "int16":   pc.ELEMENTTYPE_INT16,
+        "uint16":  pc.ELEMENTTYPE_UINT16,
+        "int32":   pc.ELEMENTTYPE_INT32,
+        "uint32":  pc.ELEMENTTYPE_UINT32,
+        "float32": pc.ELEMENTTYPE_FLOAT32
     };
 
     var jsonToLightType = {
-        "directional": pc.scene.LIGHTTYPE_DIRECTIONAL,
-        "point":       pc.scene.LIGHTTYPE_POINT,
-        "spot":        pc.scene.LIGHTTYPE_SPOT
+        "directional": pc.LIGHTTYPE_DIRECTIONAL,
+        "point":       pc.LIGHTTYPE_POINT,
+        "spot":        pc.LIGHTTYPE_SPOT
     };
 
     var jsonToProjectionType = {
-        "perspective":  pc.scene.Projection.PERSPECTIVE,
-        "orthographic": pc.scene.Projection.ORTHOGRAPHIC
+        "perspective":  pc.PROJECTION_PERSPECTIVE,
+        "orthographic": pc.PROJECTION_ORTHOGRAPHIC
     };
 
     /**
      * @name pc.resources.ModelResourceHandler
-     * @class Resource Handler for creating pc.scene.Model resources
+     * @class Resource Handler for creating pc.Model resources
      * @description {@link pc.resources.ResourceHandler} use to load 3D model resources
-     * @param {pc.gfx.Device} device The graphics device that will be rendering
+     * @param {pc.GraphicsDevice} device The graphics device that will be rendering
      * @param {pc.asset.AssetRegistry} assetRegistry The AssetRegistry that is being used by the current application
      */
     var ModelResourceHandler = function (device, assetRegistry) {
@@ -99,7 +99,7 @@ pc.extend(pc.resources, function () {
 	/**
 	 * @function
 	 * @name pc.resources.ModelResourceHandler#open
-	 * @description Process data in deserialized format into a pc.scene.Model object
+	 * @description Process data in deserialized format into a pc.Model object
 	 * @param {Object} data The data from model file deserialized into a Javascript Object
 	 * @param {Object} [options]
 	 * @param {String} [options.directory] The directory to load textures from
@@ -126,7 +126,7 @@ pc.extend(pc.resources, function () {
     /**
     * @function
     * @name pc.resources.ModelResourceHandler#_loadModelJson
-    * @description Load a pc.scene.Model from data in the PlayCanvas JSON format
+    * @description Load a pc.Model from data in the PlayCanvas JSON format
     * @param {Object} json The data
     * @param {Object} mapping An array of mapping data, for each mesh there should be a entry with a 'material' field mapping meshInstance to material asset
     */
@@ -141,7 +141,7 @@ pc.extend(pc.resources, function () {
         for (i = 0; i < modelData.nodes.length; i++) {
             var nodeData = modelData.nodes[i];
 
-            var node = new pc.scene.GraphNode();
+            var node = new pc.GraphNode();
             node.setName(nodeData.name);
             node.setLocalPosition(nodeData.position[0], nodeData.position[1], nodeData.position[2]);
             node.setLocalEulerAngles(nodeData.rotation[0], nodeData.rotation[1], nodeData.rotation[2]);
@@ -159,7 +159,7 @@ pc.extend(pc.resources, function () {
         ///////////
         if (!this._device.supportsBoneTextures && modelData.skins.length > 0) {
             var boneLimit = this._device.getBoneLimit();
-            pc.scene.partitionSkin(modelData, mapping, boneLimit);
+            pc.partitionSkin(modelData, mapping, boneLimit);
         }
 
         var skins = [];
@@ -176,10 +176,10 @@ pc.extend(pc.resources, function () {
                                                      ibm[12], ibm[13], ibm[14], ibm[15]);
             }
 
-            var skin = new pc.scene.Skin(this._device, inverseBindMatrices, skinData.boneNames);
+            var skin = new pc.Skin(this._device, inverseBindMatrices, skinData.boneNames);
             skins.push(skin);
 
-            var skinInstance = new pc.scene.SkinInstance(skin);
+            var skinInstance = new pc.SkinInstance(skin);
             // Resolve bone IDs to actual graph nodes
             var bones = [];
             for (j = 0; j < skin.boneNames.length; j++) {
@@ -197,20 +197,20 @@ pc.extend(pc.resources, function () {
         var vertexBuffers = [];
         var attribute, attributeName;
         var attributeMap = {
-            position: pc.gfx.SEMANTIC_POSITION,
-            normal: pc.gfx.SEMANTIC_NORMAL,
-            tangent: pc.gfx.SEMANTIC_TANGENT,
-            blendWeight: pc.gfx.SEMANTIC_BLENDWEIGHT,
-            blendIndices: pc.gfx.SEMANTIC_BLENDINDICES,
-            color: pc.gfx.SEMANTIC_COLOR,
-            texCoord0: pc.gfx.SEMANTIC_TEXCOORD0,
-            texCoord1: pc.gfx.SEMANTIC_TEXCOORD1,
-            texCoord2: pc.gfx.SEMANTIC_TEXCOORD2,
-            texCoord3: pc.gfx.SEMANTIC_TEXCOORD3,
-            texCoord4: pc.gfx.SEMANTIC_TEXCOORD4,
-            texCoord5: pc.gfx.SEMANTIC_TEXCOORD5,
-            texCoord6: pc.gfx.SEMANTIC_TEXCOORD6,
-            texCoord7: pc.gfx.SEMANTIC_TEXCOORD7
+            position: pc.SEMANTIC_POSITION,
+            normal: pc.SEMANTIC_NORMAL,
+            tangent: pc.SEMANTIC_TANGENT,
+            blendWeight: pc.SEMANTIC_BLENDWEIGHT,
+            blendIndices: pc.SEMANTIC_BLENDINDICES,
+            color: pc.SEMANTIC_COLOR,
+            texCoord0: pc.SEMANTIC_TEXCOORD0,
+            texCoord1: pc.SEMANTIC_TEXCOORD1,
+            texCoord2: pc.SEMANTIC_TEXCOORD2,
+            texCoord3: pc.SEMANTIC_TEXCOORD3,
+            texCoord4: pc.SEMANTIC_TEXCOORD4,
+            texCoord5: pc.SEMANTIC_TEXCOORD5,
+            texCoord6: pc.SEMANTIC_TEXCOORD6,
+            texCoord7: pc.SEMANTIC_TEXCOORD7
         };
 
         for (i = 0; i < modelData.vertices.length; i++) {
@@ -224,7 +224,7 @@ pc.extend(pc.resources, function () {
                         indices = indices.concat(modelData.meshes[j].indices);
                     }
                 }
-                tangents = pc.scene.procedural.calculateTangents(vertexData.position.data, vertexData.normal.data, vertexData.texCoord0.data, indices);
+                tangents = pc.calculateTangents(vertexData.position.data, vertexData.normal.data, vertexData.texCoord0.data, indices);
                 vertexData.tangent = { type: "float32", components: 4, data: tangents };
             }
 
@@ -249,13 +249,13 @@ pc.extend(pc.resources, function () {
                     normalize: false
                 });
             }
-            var vertexFormat = new pc.gfx.VertexFormat(this._device, formatDesc);
+            var vertexFormat = new pc.VertexFormat(this._device, formatDesc);
 
             // Create the vertex buffer
             var numVertices = vertexData.position.data.length / vertexData.position.components;
-            var vertexBuffer = new pc.gfx.VertexBuffer(this._device, vertexFormat, numVertices);
+            var vertexBuffer = new pc.VertexBuffer(this._device, vertexFormat, numVertices);
 
-            var iterator = new pc.gfx.VertexIterator(vertexBuffer);
+            var iterator = new pc.VertexIterator(vertexBuffer);
             for (j = 0; j < numVertices; j++) {
                 for (attributeName in vertexData) {
                     attribute = vertexData[attributeName];
@@ -300,7 +300,7 @@ pc.extend(pc.resources, function () {
         var indexData = null;
         var indexBase = 0;
         if (numIndices > 0) {
-            indexBuffer = new pc.gfx.IndexBuffer(this._device, pc.gfx.INDEXFORMAT_UINT16, numIndices);
+            indexBuffer = new pc.IndexBuffer(this._device, pc.INDEXFORMAT_UINT16, numIndices);
             indexData = new Uint16Array(indexBuffer.lock());
         }
 
@@ -319,7 +319,7 @@ pc.extend(pc.resources, function () {
             );
 
             var indexed = (meshData.indices !== undefined);
-            var mesh = new pc.scene.Mesh();
+            var mesh = new pc.Mesh();
             mesh.vertexBuffer = vertexBuffers[meshData.vertices];
             mesh.indexBuffer[0] = indexed ? indexBuffer : null;
             mesh.primitive[0].type = jsonToPrimitiveType[meshData.type];
@@ -346,7 +346,7 @@ pc.extend(pc.resources, function () {
         // MESH INSTANCES //
         ////////////////////
         var meshInstances = [];
-        var defaultMaterial = new pc.scene.PhongMaterial();
+        var defaultMaterial = new pc.PhongMaterial();
         for (i = 0; i < modelData.meshInstances.length; i++) {
             var meshInstanceData = modelData.meshInstances[i];
 
@@ -356,7 +356,7 @@ pc.extend(pc.resources, function () {
             if (!material) {
                 material = defaultMaterial;
             }
-            var meshInstance = new pc.scene.MeshInstance(node, mesh, material);
+            var meshInstance = new pc.MeshInstance(node, mesh, material);
 
             if (mesh.skin) {
                 var skinIndex = skins.indexOf(mesh.skin);
@@ -369,7 +369,7 @@ pc.extend(pc.resources, function () {
             meshInstances.push(meshInstance);
         }
 
-        var model = new pc.scene.Model();
+        var model = new pc.Model();
         model.graph = nodes[0];
         model.meshInstances = meshInstances;
         model.skinInstances = skinInstances;
@@ -415,7 +415,7 @@ pc.extend(pc.resources, function () {
 	};
 	ModelRequest = pc.inherits(ModelRequest, pc.resources.ResourceRequest);
     ModelRequest.prototype.type = "model";
-    ModelRequest.prototype.Type = pc.scene.Model;
+    ModelRequest.prototype.Type = pc.Model;
 
 	return {
 		ModelResourceHandler: ModelResourceHandler,

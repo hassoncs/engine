@@ -13,20 +13,20 @@ pc.extend(pc.fw, function() {
         this.colorMapAsset = null;
         this.normalMap = null;
         this.normalMapAsset = null;
-        this.oneShot = false;
+        this.loop = true;
         this.preWarm = false;
         this.sort = 0;                          // Sorting mode: 0 = none, 1 = by distance, 2 = by life, 3 = by -life;   Forces CPU mode if not 0
-        this.mode = "GPU";
-        this.camera = null;                // Required for CPU sorting
+        this.mode = pc.PARTICLEMODE_GPU;
         this.scene = null;
         this.lighting = false;
         this.halfLambert = false;            // Uses half-lambert lighting instead of Lambert
         this.intensity = 1;
         this.stretch = 0.0;
+        this.alignToMotion = false;
         this.depthSoftening = 0;
         this.mesh = null;                       // Mesh to be used as particle. Vertex buffer is supposed to hold vertex position in first 3 floats of each vertex
                                                 // Leave undefined to use simple quads
-        this.depthTest = false;
+        this.depthWrite = false;
 
         // Time-dependent parameters
         this.scaleGraph = null;
@@ -47,11 +47,15 @@ pc.extend(pc.fw, function() {
         this.rotationSpeedGraph = null;
         this.rotationSpeedGraph2 = null;
 
-        this.blendType = pc.scene.BLEND_NORMAL;
+        this.blendType = pc.BLEND_NORMAL;
 
         this.model = null;
 
         this.enabled = true;
+
+        this.paused = false;
+
+        this.debugShape = null;
 
     };
     ParticleSystemComponentData = pc.inherits(ParticleSystemComponentData, pc.fw.ComponentData);

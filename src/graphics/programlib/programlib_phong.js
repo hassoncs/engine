@@ -1,4 +1,4 @@
-pc.gfx.programlib.phong = {
+pc.programlib.phong = {
     generateKey: function (device, options) {
 
         var props = [];
@@ -6,7 +6,10 @@ pc.gfx.programlib.phong = {
         for(prop in options) {
             if (prop==="lights") {
                 for(var i=0; i<options.lights.length; i++) {
-                    props.push(options.lights[i].getType() + "_" + (options.lights[i].getCastShadows() ? 1 : 0) + "_" + options.lights[i].getFalloffMode());
+                    props.push(options.lights[i].getType() + "_"
+                        + (options.lights[i].getCastShadows() ? 1 : 0) + "_"
+                        + options.lights[i].getFalloffMode() + "_"
+                        + !!options.lights[i].getNormalOffsetBias());
                 }
             } else {
                 if (options[prop]) props.push(prop);
@@ -37,14 +40,15 @@ pc.gfx.programlib.phong = {
         var i;
         var lighting = options.lights.length > 0;
         var reflections = options.cubeMap || options.sphereMap || options.prefilteredCubemap;
-        var useTangents = pc.gfx.precalculatedTangents;
+        var useTangents = pc.precalculatedTangents;
+        var useTexCubeLod = device.extTextureLod && device.samplerCount < 16;
         if ((options.cubeMap) || (options.prefilteredCubemap)) options.sphereMap = null; // cubeMaps have higher priority
 
-        if (options.shadingModel===pc.scene.SPECULAR_PHONG) {
+        if (options.shadingModel===pc.SPECULAR_PHONG) {
             options.fresnelModel = 0;
             options.specularAA = false;
         } else {
-            options.fresnelModel = (options.fresnelModel===0)? pc.scene.FRESNEL_SCHLICK : options.fresnelModel;
+            options.fresnelModel = (options.fresnelModel===0)? pc.FRESNEL_SCHLICK : options.fresnelModel;
         }
 
         this.options = options;
@@ -52,22 +56,22 @@ pc.gfx.programlib.phong = {
         ////////////////////////////
         // GENERATE VERTEX SHADER //
         ////////////////////////////
-        var getSnippet = pc.gfx.programlib.getSnippet;
+        var getSnippet = pc.programlib.getSnippet;
         var code = '';
         var codeBody = '';
 
         var varyings = ""; // additional varyings for map transforms
 
-        var chunks = pc.gfx.shaderChunks;
+        var chunks = pc.shaderChunks;
         code += chunks.baseVS;
 
         var attributes = {
-            vertex_position: pc.gfx.SEMANTIC_POSITION
+            vertex_position: pc.SEMANTIC_POSITION
         }
         codeBody += "   vPositionW    = getWorldPosition(data);\n";
 
         if (lighting || reflections) {
-            attributes.vertex_normal = pc.gfx.SEMANTIC_NORMAL;
+            attributes.vertex_normal = pc.SEMANTIC_NORMAL;
             codeBody += "   vNormalW    = getNormal(data);\n";
 
             if ((options.sphereMap) && (device.fragmentUniformsCount <= 16)) {
@@ -76,7 +80,7 @@ pc.gfx.programlib.phong = {
             }
 
             if (options.normalMap && useTangents) {
-                attributes.vertex_tangent = pc.gfx.SEMANTIC_TANGENT;
+                attributes.vertex_tangent = pc.SEMANTIC_TANGENT;
                 code += chunks.tangentBinormalVS;
                 codeBody += "   vTangentW   = getTangent(data);\n";
                 codeBody += "   vBinormalW  = getBinormal(data);\n";
@@ -85,7 +89,7 @@ pc.gfx.programlib.phong = {
 
         if (options.diffuseMap || options.specularMap || options.glossMap ||
             options.emissiveMap || options.normalMap || options.heightMap || options.opacityMap) {
-            attributes.vertex_texCoord0 = pc.gfx.SEMANTIC_TEXCOORD0;
+            attributes.vertex_texCoord0 = pc.SEMANTIC_TEXCOORD0;
             code += chunks.uv0VS;
             codeBody += "   vec2 uv0        = getUv0(data);\n";
 
@@ -115,18 +119,18 @@ pc.gfx.programlib.phong = {
         }
 
         if (options.lightMap || (options.aoMap && options.aoUvSet===1)) {
-            attributes.vertex_texCoord1 = pc.gfx.SEMANTIC_TEXCOORD1;
+            attributes.vertex_texCoord1 = pc.SEMANTIC_TEXCOORD1;
             code += chunks.uv1VS;
             codeBody += "   vUv1        = getUv1(data);\n";
         }
 
         if (options.vertexColors) {
-            attributes.vertex_color = pc.gfx.SEMANTIC_COLOR;
+            attributes.vertex_color = pc.SEMANTIC_COLOR;
         }
 
         if (options.skin) {
-            attributes.vertex_boneWeights = pc.gfx.SEMANTIC_BLENDWEIGHT;
-            attributes.vertex_boneIndices = pc.gfx.SEMANTIC_BLENDINDICES;
+            attributes.vertex_boneWeights = pc.SEMANTIC_BLENDWEIGHT;
+            attributes.vertex_boneIndices = pc.SEMANTIC_BLENDINDICES;
             code += getSnippet(device, 'vs_skin_decl');
             code += chunks.transformSkinnedVS;
             if (lighting || reflections) code += chunks.normalSkinnedVS;
@@ -155,12 +159,12 @@ pc.gfx.programlib.phong = {
         for (i = 0; i < options.lights.length; i++) {
             var lightType = options.lights[i].getType();
             code += "uniform vec3 light" + i + "_color;\n";
-            if (lightType==pc.scene.LIGHTTYPE_DIRECTIONAL) {
+            if (lightType==pc.LIGHTTYPE_DIRECTIONAL) {
                 code += "uniform vec3 light" + i + "_direction;\n";
             } else {
                 code += "uniform vec3 light" + i + "_position;\n";
                 code += "uniform float light" + i + "_radius;\n";
-                if (lightType==pc.scene.LIGHTTYPE_SPOT) {
+                if (lightType==pc.LIGHTTYPE_SPOT) {
                     code += "uniform vec3 light" + i + "_spotDirection;\n";
                     code += "uniform float light" + i + "_innerConeAngle;\n";
                     code += "uniform float light" + i + "_outerConeAngle;\n";
@@ -168,12 +172,12 @@ pc.gfx.programlib.phong = {
             }
             if (options.lights[i].getCastShadows()) {
                 code += "uniform mat4 light" + i + "_shadowMatrix;\n";
-                if (lightType==pc.scene.LIGHTTYPE_POINT) {
+                if (lightType==pc.LIGHTTYPE_POINT) {
                     code += "uniform vec4 light" + i + "_shadowParams;\n"; // Width, height, bias, radius
                 } else {
                     code += "uniform vec3 light" + i + "_shadowParams;\n"; // Width, height, bias
                 }
-                if (lightType==pc.scene.LIGHTTYPE_POINT) {
+                if (lightType==pc.LIGHTTYPE_POINT) {
                     code += "uniform samplerCube light" + i + "_shadowMap;\n";
                 } else {
                     code += "uniform sampler2D light" + i + "_shadowMap;\n";
@@ -246,11 +250,11 @@ pc.gfx.programlib.phong = {
                 code += chunks.specularityColorPS;
             }
             if (options.fresnelModel > 0) {
-                if (options.fresnelModel === pc.scene.FRESNEL_SIMPLE) {
+                if (options.fresnelModel === pc.FRESNEL_SIMPLE) {
                     code += chunks.fresnelSimplePS;
-                } else if (options.fresnelModel === pc.scene.FRESNEL_SCHLICK) {
+                } else if (options.fresnelModel === pc.FRESNEL_SCHLICK) {
                     code += chunks.fresnelSchlickPS;
-                } else if (options.fresnelModel === pc.scene.FRESNEL_COMPLEX) {
+                } else if (options.fresnelModel === pc.FRESNEL_COMPLEX) {
                     code += chunks.fresnelComplexPS;
                 }
             }
@@ -296,7 +300,11 @@ pc.gfx.programlib.phong = {
 
         if (options.cubeMap) {
             if (options.prefilteredCubemap) {
-                code += chunks.reflectionPrefilteredCubePS;
+                if (useTexCubeLod) {
+                    code += chunks.reflectionPrefilteredCubeLodPS;
+                } else {
+                    code += chunks.reflectionPrefilteredCubePS;
+                }
             } else {
                 code += chunks.reflectionCubePS.replace(/\$textureCubeSAMPLE/g, options.hdrReflection? "textureCubeRGBM" : "textureCubeSRGB");
             }
@@ -318,7 +326,11 @@ pc.gfx.programlib.phong = {
         }
 
         if (options.prefilteredCubemap) {
-            code += chunks.ambientPrefilteredCubePS;
+            if (useTexCubeLod) {
+                code += chunks.ambientPrefilteredCubeLodPS;
+            } else {
+                code += chunks.ambientPrefilteredCubePS;
+            }
         } else {
             code += chunks.ambientConstantPS;
         }
@@ -333,7 +345,7 @@ pc.gfx.programlib.phong = {
 
         code += chunks.lightDiffuseLambertPS;
         if (options.useSpecular) {
-            code += options.shadingModel===pc.scene.SPECULAR_PHONG? chunks.lightSpecularPhongPS : chunks.lightSpecularBlinnPS;
+            code += options.shadingModel===pc.SPECULAR_PHONG? chunks.lightSpecularPhongPS : chunks.lightSpecularBlinnPS;
             if (options.sphereMap || options.cubeMap || (options.fresnelModel > 0)) {
                 if (options.fresnelModel > 0) {
                     if (options.conserveEnergy) {
@@ -393,7 +405,7 @@ pc.gfx.programlib.phong = {
         }
         if (options.aoMap) {
                 code += "    applyAO(data);\n";
-         }
+        }
 
         if (lighting || reflections) {
             if (options.cubeMap) {
@@ -412,28 +424,46 @@ pc.gfx.programlib.phong = {
 
                 var lightType = options.lights[i].getType();
 
-                if (lightType==pc.scene.LIGHTTYPE_DIRECTIONAL) {
+                if (lightType==pc.LIGHTTYPE_DIRECTIONAL) {
                     // directional
                     code += "   data.lightDirNormW = light"+i+"_direction;\n";
                     code += "   data.atten = 1.0;\n";
                 } else {
                     code += "   getLightDirPoint(data, light"+i+"_position);\n";
-                    if (options.lights[i].getFalloffMode()==pc.scene.LIGHTFALLOFF_LINEAR) {
+                    if (options.lights[i].getFalloffMode()==pc.LIGHTFALLOFF_LINEAR) {
                         code += "   data.atten = getFalloffLinear(data, light"+i+"_radius);\n";
                     } else {
                         code += "   data.atten = getFalloffInvSquared(data, light"+i+"_radius);\n";
                     }
-                    if (lightType==pc.scene.LIGHTTYPE_SPOT) {
+                    if (lightType==pc.LIGHTTYPE_SPOT) {
                         code += "   data.atten *= getSpotEffect(data, light"+i+"_spotDirection, light"+i+"_innerConeAngle, light"+i+"_outerConeAngle);\n";
                     }
                 }
 
                 code += "   data.atten *= getLightDiffuse(data);\n";
                 if (options.lights[i].getCastShadows()) {
-                    if (lightType==pc.scene.LIGHTTYPE_POINT) {
-                        code += "   data.atten *= getShadowPoint(data, light"+i+"_shadowMap, light"+i+"_shadowParams);\n";
+                    if (lightType==pc.LIGHTTYPE_POINT) {
+                        var shadowCoordArgs = "(data, light"+i+"_shadowMap, light"+i+"_shadowParams);\n";
+                        if (!options.lights[i].getNormalOffsetBias()) {
+                            code += "   data.atten *= getShadowPoint" + shadowCoordArgs;
+                        } else {
+                            code += "   data.atten *= getShadowPointNormalOffset" + shadowCoordArgs;
+                        }
                     } else {
-                        code += "   getShadowCoord(data, light"+i+"_shadowMatrix, light"+i+"_shadowParams);\n";
+                        var shadowCoordArgs = "(data, light"+i+"_shadowMatrix, light"+i+"_shadowParams);\n";
+                        if (!options.lights[i].getNormalOffsetBias()) {
+                            if (lightType==pc.LIGHTTYPE_SPOT) {
+                                code += "   getShadowCoordPersp" + shadowCoordArgs;
+                            } else {
+                                code += "   getShadowCoordOrtho" + shadowCoordArgs;
+                            }
+                        } else {
+                            if (lightType==pc.LIGHTTYPE_SPOT) {
+                                code += "   getShadowCoordPerspNormalOffset" + shadowCoordArgs;
+                            } else {
+                                code += "   getShadowCoordOrthoNormalOffset" + shadowCoordArgs;
+                            }
+                        }
                         code += "   data.atten *= getShadowPCF3x3(data, light"+i+"_shadowMap, light"+i+"_shadowParams);\n";
                     }
                 }
@@ -448,6 +478,11 @@ pc.gfx.programlib.phong = {
             }
         }
         code += "\n";
+
+        if (options.aoMap && options.occludeSpecular) {
+                code += "    occludeSpecular(data);\n";
+        }
+
         code += chunks.endPS;
 
         // Make sure all components are between 0 and 1

@@ -7,8 +7,8 @@ vec3 fixSeamsStretch(vec3 vec, float invRecMipSize) {
     return vec;
 }
 
-
 void addAmbient(inout psInternalData data) {
     vec3 fixedReflDir = fixSeamsStretch(data.normalW, 1.0 - 1.0 / 4.0);
-    data.diffuseLight = decodeRGBM(textureCube(texture_prefilteredCubeMap4, fixedReflDir));
+    data.diffuseLight = decodeRGBM( textureCubeLodEXT(texture_prefilteredCubeMap128, fixedReflDir, 5.0) );
 }
+

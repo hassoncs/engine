@@ -1,5 +1,70 @@
 # PlayCanvas Engine Changes
 
+### v0.162.8
+* Removed requestAnimationFrame polyfill since browser support is now at 100%.
+* Added documentation for particlesystem component.
+* Old particle system was deleted.
+* Removed 2 from ParticleEmitter2/particle2.
+* depthTest renamed to depthWrite in particles (that's what it actually does).
+* Removed unneeded code from simulation.
+* [FIX] Flickering bug when using CPU wrapping.
+* [FIX] Particle gamma correction fix
+
+### v0.162.7
+* Single mipmapped prefiltered cubemap instead of 6 by using EXT_shader_texture_lod. Only enabled when extension exists AND device has less than 16 samplers (mobiles).
+
+### v0.162.6
+* Added check for more than 65k verts in particle system.
+* Particle systems wrapBounds are now relative to emitter position instead of camera position.
+* Particle systems mode parameter now uses enum, not string.
+* Particle systems depth softening control is now a bit more intuitive.
+* Added _activeCamera to scene object.
+* Removed camera property from particle system.
+* [FIX] Particle systems alignToMotion.
+* [FIX] Gamma correction on particles in some conditions.
+* [FIX] Particle shader caching key generation.
+* [FIX] Runtime CPU-GPU particle switch.
+* [FIX] Sorting of mesh particles.
+* [FIX] Mobile particle problems.
+* [FIX] Depth softening bugs.
+
+### v0.162.5
+* Added RigidBodyComponent#teleport(Vec3, Quat)
+* Removed skybox from documentation
+
+### v0.162.4
+* Added autoPlay to particle systems
+* Particle systems no longer disable themselves
+* [FIX] Issue when cloning particles that contained boolean parameters with false values
+
+### v0.162.3
+* Specular lighting now respects AO maps.
+
+### v0.162.2
+* Added reset(), stop(), play(), pause() and isPlaying() methods to particle systems
+* Replaced oneShot property with loop property in particle systems
+* Non-looped particle emitters do not start emission unless play() is called
+* [FIX] particles CPU stretching
+* [FIX] WebGL warning spamming by disallowing particles to be rendered into depth map
+
+### v0.162.1
+* Added alignToMotion to particle systems.
+* Exposed shadowBias for light components.
+* [FIX] Particle stretching.
+* [FIX] Only alpha sort mesh instances in the main world.
+* [FIX] Removed debug log.
+* [FIX] Light intensity not working because of typo.
+
+### v0.162.0
+
+* Scene can now have a skybox by setting scene.skybox = cubemap.
+* Added optional destinations parameter in livelink#send.
+* Shader now uses scene's prefilteredCubeMap if it's not overridden in material;
+* [FIX] Light intensity issues
+* [FIX] Picker can now only select basic and phong material mesh instances. This fixes picking if a sky box is in the scene.
+* [FIX] Document rigidbody group and mask properties.
+* [FIX] Missing rigidbody constant BODYGROUP_ENGINE_3.
+
 ### v0.161.0
 
 * [BREAKING] Texture.maxAnisotropy -> Texture.anisotropy. Device.maxSupportedMaxAnisotropy -> Device.maxAnisotropy
