@@ -569,6 +569,11 @@ pc.programlib.phong = {
         }
 
         code += "   getOpacity(data);\n";
+
+        // *** MELDIO HACK *** Allow the alpha to be pulled from the diffuseMap instead of the opacityMap
+        code += "   data.alpha = texture2DSRGB(texture_diffuseMap, vUV0_1).a * material_opacity;\n\n";
+        // *** MELDIO HACK *** Allow the alpha to be pulled from the diffuseMap instead of the opacityMap
+
         if (options.alphaTest) {
             code += "   if (data.alpha < alpha_ref) discard;"
         }
@@ -682,6 +687,10 @@ pc.programlib.phong = {
         } else {
             code+= "gl_FragColor.a = 1.0;\n";
         }
+        
+        // *** MELDIO HACK *** : Premultiply texture alpha
+        code += "    gl_FragColor.rgb *= data.alpha;\n";
+        // *** MELDIO HACK ***
 
         // Make sure all components are between 0 and 1
         code += getSnippet(device, 'fs_clamp');
