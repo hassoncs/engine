@@ -1,11 +1,29 @@
 pc.extend(pc, function () {
-
-    function sortDrawCalls(drawCallA, drawCallB) {
-        if (drawCallA.distSqr && drawCallB.distSqr) {
-            return drawCallB.distSqr - drawCallA.distSqr;
-        } else {
-            return drawCallB.key - drawCallA.key;
+    // Calculates the depth from the root of a particular drawCall
+    function getDrawDepth(drawCall) {
+        var node = drawCall.node;
+        var level = 0;
+        var index = node._parent.meldioIndex;
+        while (node != null) {
+            node = node._parent;
+            level++;
         }
+        return level * 1000 - index;
+    }
+
+    // Sort meshes into the correct render order
+    // *** MELDIO HACK ***
+    // This has been modified to force meshes to be drawn using meldio's ordering instead of regular z-depth
+    function sortDrawCalls(drawCallA, drawCallB) {
+        drawCallA.meldioDepth = getDrawDepth(drawCallA);
+        drawCallB.meldioDepth = getDrawDepth(drawCallB);
+        return drawCallA.meldioDepth - drawCallB.meldioDepth;
+        
+        // if (drawCallA.distSqr && drawCallB.distSqr) {
+        //     return drawCallB.distSqr - drawCallA.distSqr;
+        // } else {
+        //     return drawCallB.key - drawCallA.key;
+        // }
     }
 
     // Global shadowmap resources
