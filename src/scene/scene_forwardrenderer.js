@@ -1,24 +1,33 @@
 pc.extend(pc, function () {
     // Calculates the depth from the root of a particular drawCall
     function getDrawDepth(drawCall) {
-        var node = drawCall.node;
-        var level = 0;
-        var index = node._parent.meldioIndex;
+        var node;
+        var index;
+        node = drawCall.node;
+        var nodesToRoot = [];
         while (node != null) {
+            nodesToRoot.unshift(node);
             node = node._parent;
-            level++;
         }
-        return level * 1000 - index;
+
+        // Starts with the rootNode
+        var meldioDepth = 0;
+        for (var i = 0; i < nodesToRoot.length; ++i) {
+            node = nodesToRoot[i];
+            index = (node.meldioIndex || 0) + 1;
+            meldioDepth += Math.pow(10, 8 - i) * index;
+        }
+        return meldioDepth;
     }
 
     // Sort meshes into the correct render order
     // *** MELDIO HACK ***
     // This has been modified to force meshes to be drawn using meldio's ordering instead of regular z-depth
     function sortDrawCalls(drawCallA, drawCallB) {
-        drawCallA.meldioDepth = getDrawDepth(drawCallA);
-        drawCallB.meldioDepth = getDrawDepth(drawCallB);
-        return drawCallA.meldioDepth - drawCallB.meldioDepth;
-        
+        if (!drawCallA.meldioDepth) drawCallA.meldioDepth = getDrawDepth(drawCallA);
+        if (!drawCallB.meldioDepth) drawCallB.meldioDepth = getDrawDepth(drawCallB);
+        return drawCallB.meldioDepth - drawCallA.meldioDepth;
+
         // if (drawCallA.distSqr && drawCallB.distSqr) {
         //     return drawCallB.distSqr - drawCallA.distSqr;
         // } else {
