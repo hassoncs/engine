@@ -571,7 +571,9 @@ pc.programlib.phong = {
         code += "   getOpacity(data);\n";
 
         // *** MELDIO HACK *** Allow the alpha to be pulled from the diffuseMap instead of the opacityMap
-        code += "   data.alpha = texture2DSRGB(texture_diffuseMap, vUV0_1).a * material_opacity;\n\n";
+        if (options.diffuseMap) {
+            code += "   data.alpha = texture2DSRGB(texture_diffuseMap, vUV0_1).a * material_opacity;\n\n";
+        }
         // *** MELDIO HACK *** Allow the alpha to be pulled from the diffuseMap instead of the opacityMap
 
         if (options.alphaTest) {
