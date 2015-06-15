@@ -29,8 +29,11 @@ pc.extend(pc, function () {
         // Add event support
         pc.events.attach(this);
 
-        this._time = 0;
+        this._time = window.performance && window.performance.now ? performance.now() : Date.now();
         this.timeScale = 1;
+
+        this.fps = 30;
+        this.interval = 1 / this.fps;
 
         this._librariesLoaded = false;
         this._fillMode = pc.FILLMODE_KEEP_ASPECT;
@@ -337,13 +340,14 @@ pc.extend(pc, function () {
             var now = (window.performance && window.performance.now) ? performance.now() : Date.now();
             var dt = (now - (this._time || now)) / 1000.0;
 
-            this._time = now;
+            if (dt >= this.interval) {
+                dt = pc.math.clamp(dt, 0, 0.1); // Maximum delta is 0.1s or 10 fps.
+                dt *= this.timeScale;
 
-            dt = pc.math.clamp(dt, 0, 0.1); // Maximum delta is 0.1s or 10 fps.
-            dt *= this.timeScale;
-
-            this.update(dt);
-            this.render();
+                this.update(dt);
+                this.render();
+                this._time = now;
+            }
         },
 
         /**
